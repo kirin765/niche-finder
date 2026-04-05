@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from micro_niche_finder.config.database import Base
@@ -61,6 +61,7 @@ class QueryGroup(Base):
     problem_candidate: Mapped[ProblemCandidate] = relationship(back_populates="query_groups")
     trend_snapshots: Mapped[list[TrendSnapshot]] = relationship(back_populates="query_group")
     features: Mapped[list[Feature]] = relationship(back_populates="query_group")
+    collection_schedules: Mapped[list[CollectionSchedule]] = relationship(back_populates="query_group")
 
 
 class TrendSnapshot(Base):
@@ -71,6 +72,8 @@ class TrendSnapshot(Base):
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    target_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    request_payload_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     raw_response_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
@@ -130,3 +133,39 @@ class FinalReport(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     problem_candidate: Mapped[ProblemCandidate] = relationship(back_populates="final_reports")
+
+
+class CollectionSchedule(Base):
+    __tablename__ = "collection_schedules"
+    __table_args__ = (UniqueConstraint("query_group_id", name="uq_collection_schedules_query_group"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    query_group_id: Mapped[int] = mapped_column(ForeignKey("query_groups.id"), nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="naver_datalab")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    cadence_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=180)
+    collection_targets_json: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+    next_target_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_collect_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    last_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    query_group: Mapped[QueryGroup] = relationship(back_populates="collection_schedules")
+
+
+class ApiUsageCounter(Base):
+    __tablename__ = "api_usage_counters"
+    __table_args__ = (UniqueConstraint("source", "usage_date", name="uq_api_usage_source_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    usage_date: Mapped[date] = mapped_column(Date, nullable=False)
+    daily_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    calls_made: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)

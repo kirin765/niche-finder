@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Micro Niche Finder collector every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Unit=micro-niche-collector.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -106,6 +106,26 @@ class TrendFeatureSet(BaseModel):
     brand_dependency_score: float
 
 
+class CollectionTarget(BaseModel):
+    key: str
+    weeks: int
+    time_unit: str = "week"
+    device: str | None = None
+    ages: list[str] | None = None
+    gender: str | None = None
+    updates_features: bool = False
+
+
+class CollectorRunSummary(BaseModel):
+    source: str
+    run_started_at: datetime
+    allowance: int
+    schedules_considered: int
+    schedules_processed: int
+    calls_made: int
+    errors: list[str] = Field(default_factory=list)
+
+
 class ScoreBreakdown(BaseModel):
     repeated_pain: float
     problem_intensity: float

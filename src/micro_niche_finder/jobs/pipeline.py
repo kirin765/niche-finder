@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 from micro_niche_finder.domain.enums import CandidateStatus
 from micro_niche_finder.domain.schemas import FinalAnalysisInput, PipelineRunResponse
 from micro_niche_finder.jobs import build_reports, collect_trends, compute_features, generate_candidates, score_candidates
+from micro_niche_finder.repos.collection_repo import CollectionRepository
 from micro_niche_finder.repos.candidate_repo import CandidateRepository, QueryGroupRepository, SeedCategoryRepository
 from micro_niche_finder.repos.score_repo import ScoreRepository
 from micro_niche_finder.repos.trend_repo import TrendRepository
+from micro_niche_finder.services.collection_scheduler_service import CollectionSchedulerService
 from micro_niche_finder.services.clustering_service import QueryClusteringService
 from micro_niche_finder.services.datalab_service import NaverDataLabService
 from micro_niche_finder.services.feature_service import FeatureExtractionService
@@ -26,6 +28,7 @@ class PipelineService:
         datalab_service: NaverDataLabService,
         clustering_service: QueryClusteringService,
         feature_service: FeatureExtractionService,
+        collection_scheduler_service: CollectionSchedulerService,
         scoring_service: ScoringService,
         report_service: ReportService,
     ) -> None:
@@ -33,6 +36,7 @@ class PipelineService:
         self.datalab_service = datalab_service
         self.clustering_service = clustering_service
         self.feature_service = feature_service
+        self.collection_scheduler_service = collection_scheduler_service
         self.scoring_service = scoring_service
         self.report_service = report_service
 
@@ -47,6 +51,7 @@ class PipelineService:
         seed_repo = SeedCategoryRepository(session)
         candidate_repo = CandidateRepository(session)
         query_repo = QueryGroupRepository(session)
+        collection_repo = CollectionRepository(session)
         trend_repo = TrendRepository(session)
         score_repo = ScoreRepository(session)
 
@@ -82,7 +87,18 @@ class PipelineService:
                 excluded_queries_json=group.excluded_queries,
                 overlap_score=group.overlap_score,
             )
+            collection_repo.upsert_schedule(
+                query_group_id=query_entity.id,
+                source="naver_datalab",
+                priority=self.collection_scheduler_service.settings.collector_default_priority,
+                cadence_minutes=self.collection_scheduler_service.settings.collector_schedule_cadence_minutes,
+                collection_targets_json=[
+                    target.model_dump(mode="json") for target in self.collection_scheduler_service.default_targets()
+                ],
+                next_collect_at=self.collection_scheduler_service.default_next_collect_at(),
+            )
 
+            initial_request = self.datalab_service.build_request(group_name=group.canonical_name, queries=group.queries)
             trend_response = collect_trends.run(
                 canonical_name=group.canonical_name,
                 queries=group.queries,
@@ -93,6 +109,8 @@ class PipelineService:
                 source="naver_datalab",
                 window_start=datetime.combine(trend_response.startDate, datetime.min.time(), tzinfo=timezone.utc),
                 window_end=datetime.combine(trend_response.endDate, datetime.min.time(), tzinfo=timezone.utc),
+                target_key="baseline_12w_initial",
+                request_payload_json=initial_request.model_dump(mode="json", exclude_none=True),
                 raw_response_json=trend_response.model_dump(mode="json"),
             )
 

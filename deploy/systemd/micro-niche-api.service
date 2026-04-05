@@ -1,0 +1,16 @@
+[Unit]
+Description=Micro Niche Finder API
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/micro-niche-finder
+EnvironmentFile=/etc/micro-niche-finder.env
+ExecStart=/opt/micro-niche-finder/.venv/bin/uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

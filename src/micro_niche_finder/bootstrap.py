@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from micro_niche_finder.jobs.pipeline import PipelineService
+from micro_niche_finder.services.budget_allocator_service import BudgetAllocatorService
+from micro_niche_finder.services.collection_scheduler_service import CollectionSchedulerService
+from micro_niche_finder.services.collector_service import CollectorService
 from micro_niche_finder.services.clustering_service import QueryClusteringService
 from micro_niche_finder.services.datalab_service import NaverDataLabService
 from micro_niche_finder.services.feature_service import FeatureExtractionService
@@ -16,6 +19,9 @@ class ApplicationContainer:
     datalab_service: NaverDataLabService
     clustering_service: QueryClusteringService
     feature_service: FeatureExtractionService
+    budget_allocator_service: BudgetAllocatorService
+    collection_scheduler_service: CollectionSchedulerService
+    collector_service: CollectorService
     scoring_service: ScoringService
     report_service: ReportService
     pipeline_service: PipelineService
@@ -27,6 +33,14 @@ def get_container() -> ApplicationContainer:
     datalab_service = NaverDataLabService()
     clustering_service = QueryClusteringService()
     feature_service = FeatureExtractionService()
+    budget_allocator_service = BudgetAllocatorService()
+    collection_scheduler_service = CollectionSchedulerService()
+    collector_service = CollectorService(
+        datalab_service=datalab_service,
+        feature_service=feature_service,
+        budget_allocator=budget_allocator_service,
+        collection_scheduler=collection_scheduler_service,
+    )
     scoring_service = ScoringService()
     report_service = ReportService(llm_service=llm_service)
     pipeline_service = PipelineService(
@@ -34,6 +48,7 @@ def get_container() -> ApplicationContainer:
         datalab_service=datalab_service,
         clustering_service=clustering_service,
         feature_service=feature_service,
+        collection_scheduler_service=collection_scheduler_service,
         scoring_service=scoring_service,
         report_service=report_service,
     )
@@ -42,6 +57,9 @@ def get_container() -> ApplicationContainer:
         datalab_service=datalab_service,
         clustering_service=clustering_service,
         feature_service=feature_service,
+        budget_allocator_service=budget_allocator_service,
+        collection_scheduler_service=collection_scheduler_service,
+        collector_service=collector_service,
         scoring_service=scoring_service,
         report_service=report_service,
         pipeline_service=pipeline_service,

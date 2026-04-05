@@ -67,12 +67,29 @@ curl http://localhost:8000/api/v1/reports?limit=10
 ## Structure
 
 - `apps/api`: FastAPI entrypoint and routes
+- `apps/worker`: periodic collector worker entrypoints
 - `src/micro_niche_finder/config`: settings and database bootstrap
 - `src/micro_niche_finder/domain`: typed domain models and schemas
 - `src/micro_niche_finder/repos`: persistence repositories
 - `src/micro_niche_finder/services`: LLM, DataLab, scoring, clustering, reporting
 - `src/micro_niche_finder/jobs`: modular pipeline jobs
 - `alembic`: migrations
+
+## Periodic collection
+
+Bootstrapping schedules for existing query groups:
+
+```bash
+python scripts/bootstrap_collection_schedules.py
+```
+
+Running one budgeted collector cycle:
+
+```bash
+python -m apps.worker.run_collector --max-calls 5
+```
+
+Ubuntu deployment artifacts live under [deploy/ubuntu.md](/Users/kiwankim/niche-finder/deploy/ubuntu.md) and [deploy/systemd](/Users/kiwankim/niche-finder/deploy/systemd).
 
 ## Notes
 

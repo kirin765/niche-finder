@@ -14,14 +14,27 @@ class NaverDataLabService:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    def build_request(self, group_name: str, queries: list[str], weeks: int = 12) -> DataLabRequest:
+    def build_request(
+        self,
+        group_name: str,
+        queries: list[str],
+        weeks: int = 12,
+        *,
+        time_unit: str = "week",
+        device: str | None = None,
+        ages: list[str] | None = None,
+        gender: str | None = None,
+    ) -> DataLabRequest:
         end_date = date.today()
         start_date = end_date - timedelta(weeks=weeks)
         return DataLabRequest(
             startDate=start_date,
             endDate=end_date,
-            timeUnit="week",
+            timeUnit=time_unit,
             keywordGroups=[{"groupName": group_name, "keywords": queries}],
+            device=device,
+            ages=ages,
+            gender=gender,
         )
 
     @retry(wait=wait_exponential(min=1, max=8), stop=stop_after_attempt(3))

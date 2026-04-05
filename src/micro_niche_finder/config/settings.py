@@ -26,6 +26,9 @@ class Settings(BaseSettings):
         alias="NAVER_DATALAB_BASE_URL",
     )
     naver_datalab_daily_limit: int = Field(default=1000, alias="NAVER_DATALAB_DAILY_LIMIT")
+    collector_interval_minutes: int = Field(default=15, alias="COLLECTOR_INTERVAL_MINUTES")
+    collector_schedule_cadence_minutes: int = Field(default=180, alias="COLLECTOR_SCHEDULE_CADENCE_MINUTES")
+    collector_default_priority: int = Field(default=100, alias="COLLECTOR_DEFAULT_PRIORITY")
     top_candidate_analysis_count: int = Field(default=10, alias="TOP_CANDIDATE_ANALYSIS_COUNT")
 
 
