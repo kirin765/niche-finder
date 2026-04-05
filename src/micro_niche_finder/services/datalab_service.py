@@ -38,7 +38,7 @@ class NaverDataLabService:
             response = client.post(
                 self.settings.naver_datalab_base_url,
                 headers=headers,
-                json=request.model_dump(mode="json"),
+                json=request.model_dump(mode="json", exclude_none=True),
             )
             response.raise_for_status()
         return DataLabResponse.model_validate(response.json())
