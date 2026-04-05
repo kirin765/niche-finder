@@ -7,4 +7,5 @@ __pycache__/
 *.pyd
 *.db
 *.egg-info/
+tmp/
 .DS_Store

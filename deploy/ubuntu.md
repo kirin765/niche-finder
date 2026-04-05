@@ -18,6 +18,8 @@ cp deploy/systemd/micro-niche-finder.env.example /etc/micro-niche-finder.env
 
 Fill `/etc/micro-niche-finder.env` with production secrets.
 
+For Google Custom Search, set `GOOGLE_CUSTOM_SEARCH_API_KEY` and `GOOGLE_CUSTOM_SEARCH_CX` explicitly in the environment file.
+
 ## Database
 
 ```bash

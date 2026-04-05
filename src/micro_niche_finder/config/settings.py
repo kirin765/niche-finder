@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     top_candidate_analysis_count: int = Field(default=10, alias="TOP_CANDIDATE_ANALYSIS_COUNT")
 
 
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
