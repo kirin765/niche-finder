@@ -137,7 +137,7 @@ class FinalReport(Base):
 
 class CollectionSchedule(Base):
     __tablename__ = "collection_schedules"
-    __table_args__ = (UniqueConstraint("query_group_id", name="uq_collection_schedules_query_group"),)
+    __table_args__ = (UniqueConstraint("query_group_id", "source", name="uq_collection_schedules_query_group_source"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     query_group_id: Mapped[int] = mapped_column(ForeignKey("query_groups.id"), nullable=False)

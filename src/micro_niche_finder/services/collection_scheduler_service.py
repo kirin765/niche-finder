@@ -27,6 +27,17 @@ class CollectionSchedulerService:
             CollectionTarget(key="age_60_12w", weeks=12, ages=["60"]),
         ]
 
+    def google_default_targets(self, query_count: int) -> list[CollectionTarget]:
+        target_count = min(3, max(1, query_count))
+        return [
+            CollectionTarget(
+                key=f"google_query_{index}",
+                weeks=0,
+                metadata={"query_index": index},
+            )
+            for index in range(target_count)
+        ]
+
     def default_next_collect_at(self, now: datetime | None = None) -> datetime:
         reference = now or datetime.now(timezone.utc)
         return reference + timedelta(minutes=1)

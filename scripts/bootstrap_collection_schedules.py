@@ -22,6 +22,19 @@ def main() -> None:
                 ],
                 next_collect_at=container.collection_scheduler_service.default_next_collect_at(),
             )
+            repo.upsert_schedule(
+                query_group_id=query_group.id,
+                source="google_custom_search",
+                priority=max(1, container.collection_scheduler_service.settings.collector_default_priority - 20),
+                cadence_minutes=container.collection_scheduler_service.settings.collector_schedule_cadence_minutes,
+                collection_targets_json=[
+                    target.model_dump(mode="json")
+                    for target in container.collection_scheduler_service.google_default_targets(
+                        len(query_group.queries_json)
+                    )
+                ],
+                next_collect_at=container.collection_scheduler_service.default_next_collect_at(),
+            )
             count += 1
         session.commit()
     print(f"Bootstrapped schedules: {count}")

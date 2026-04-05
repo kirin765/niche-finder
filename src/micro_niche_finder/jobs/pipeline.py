@@ -97,6 +97,17 @@ class PipelineService:
                 ],
                 next_collect_at=self.collection_scheduler_service.default_next_collect_at(),
             )
+            collection_repo.upsert_schedule(
+                query_group_id=query_entity.id,
+                source="google_custom_search",
+                priority=max(1, self.collection_scheduler_service.settings.collector_default_priority - 20),
+                cadence_minutes=self.collection_scheduler_service.settings.collector_schedule_cadence_minutes,
+                collection_targets_json=[
+                    target.model_dump(mode="json")
+                    for target in self.collection_scheduler_service.google_default_targets(len(group.queries))
+                ],
+                next_collect_at=self.collection_scheduler_service.default_next_collect_at(),
+            )
 
             initial_request = self.datalab_service.build_request(group_name=group.canonical_name, queries=group.queries)
             trend_response = collect_trends.run(

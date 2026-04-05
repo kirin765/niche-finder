@@ -114,6 +114,7 @@ class CollectionTarget(BaseModel):
     ages: list[str] | None = None
     gender: str | None = None
     updates_features: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class CollectorRunSummary(BaseModel):
@@ -124,6 +125,30 @@ class CollectorRunSummary(BaseModel):
     schedules_processed: int
     calls_made: int
     errors: list[str] = Field(default_factory=list)
+
+
+class GoogleSearchRequest(BaseModel):
+    q: str
+    num: int = 5
+    gl: str = "kr"
+    hl: str = "ko"
+    safe: str = "off"
+
+
+class GoogleSearchResultItem(BaseModel):
+    title: str | None = None
+    link: str | None = None
+    snippet: str | None = None
+    displayLink: str | None = None
+
+
+class GoogleSearchInformation(BaseModel):
+    totalResults: str = "0"
+
+
+class GoogleCustomSearchResponse(BaseModel):
+    searchInformation: GoogleSearchInformation
+    items: list[GoogleSearchResultItem] = Field(default_factory=list)
 
 
 class ScoreBreakdown(BaseModel):

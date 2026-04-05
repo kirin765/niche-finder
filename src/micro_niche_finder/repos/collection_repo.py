@@ -16,6 +16,13 @@ class CollectionRepository:
         stmt = select(CollectionSchedule).where(CollectionSchedule.query_group_id == query_group_id)
         return self.session.scalar(stmt)
 
+    def get_schedule_for_query_group_and_source(self, query_group_id: int, source: str) -> CollectionSchedule | None:
+        stmt = select(CollectionSchedule).where(
+            CollectionSchedule.query_group_id == query_group_id,
+            CollectionSchedule.source == source,
+        )
+        return self.session.scalar(stmt)
+
     def upsert_schedule(
         self,
         *,
@@ -26,7 +33,7 @@ class CollectionRepository:
         collection_targets_json: list[dict],
         next_collect_at: datetime,
     ) -> CollectionSchedule:
-        schedule = self.get_schedule_for_query_group(query_group_id)
+        schedule = self.get_schedule_for_query_group_and_source(query_group_id, source)
         if schedule:
             schedule.source = source
             schedule.priority = priority

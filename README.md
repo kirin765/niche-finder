@@ -89,6 +89,12 @@ Running one budgeted collector cycle:
 python -m apps.worker.run_collector --max-calls 5
 ```
 
+Running one Google supplementary collection cycle:
+
+```bash
+python -m apps.worker.run_google_collector --max-calls 3
+```
+
 Ubuntu deployment artifacts live under [deploy/ubuntu.md](/Users/kiwankim/niche-finder/deploy/ubuntu.md) and [deploy/systemd](/Users/kiwankim/niche-finder/deploy/systemd).
 
 ## Notes

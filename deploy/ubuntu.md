@@ -33,9 +33,12 @@ python scripts/bootstrap_collection_schedules.py
 sudo cp deploy/systemd/micro-niche-api.service /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-collector.service /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-collector.timer /etc/systemd/system/
+sudo cp deploy/systemd/micro-niche-google-collector.service /etc/systemd/system/
+sudo cp deploy/systemd/micro-niche-google-collector.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now micro-niche-api.service
 sudo systemctl enable --now micro-niche-collector.timer
+sudo systemctl enable --now micro-niche-google-collector.timer
 ```
 
 ## What Runs
@@ -43,15 +46,20 @@ sudo systemctl enable --now micro-niche-collector.timer
 - `micro-niche-api.service`: keeps the FastAPI app running.
 - `micro-niche-collector.timer`: wakes the collector every 15 minutes.
 - `micro-niche-collector.service`: computes the current budget allowance and collects only the due schedules it can afford.
+- `micro-niche-google-collector.timer`: wakes the Google collector every 30 minutes.
+- `micro-niche-google-collector.service`: samples Google Custom Search queries for cross-source validation.
 
 ## Manual checks
 
 ```bash
 sudo systemctl status micro-niche-api.service
 sudo systemctl status micro-niche-collector.timer
+sudo systemctl status micro-niche-google-collector.timer
 sudo journalctl -u micro-niche-collector.service -n 100 --no-pager
+sudo journalctl -u micro-niche-google-collector.service -n 100 --no-pager
 source .venv/bin/activate
 python -m apps.worker.run_collector --max-calls 5
+python -m apps.worker.run_google_collector --max-calls 3
 ```
 
 ## Budget model
@@ -59,3 +67,4 @@ python -m apps.worker.run_collector --max-calls 5
 - Daily limit defaults to `1000`.
 - The allocator divides remaining calls by the number of remaining timer slots for the day.
 - With a 15-minute timer, the collector tries to consume the daily budget smoothly instead of front-loading all calls.
+- Google Custom Search has its own daily limit and is treated as a supplementary source, not the primary ranking source.

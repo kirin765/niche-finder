@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT")
     openai_text_verbosity: str = Field(default="medium", alias="OPENAI_TEXT_VERBOSITY")
 
+    google_custom_search_api_key: str | None = Field(default=None, alias="GOOGLE_CUSTOM_SEARCH_API_KEY")
+    google_custom_search_cx: str | None = Field(default=None, alias="GOOGLE_CUSTOM_SEARCH_CX")
+    google_custom_search_base_url: str = Field(
+        default="https://customsearch.googleapis.com/customsearch/v1",
+        alias="GOOGLE_CUSTOM_SEARCH_BASE_URL",
+    )
+    google_custom_search_daily_limit: int = Field(default=100, alias="GOOGLE_CUSTOM_SEARCH_DAILY_LIMIT")
+
     naver_datalab_client_id: str | None = Field(default=None, alias="NAVER_DATALAB_CLIENT_ID")
     naver_datalab_client_secret: str | None = Field(default=None, alias="NAVER_DATALAB_CLIENT_SECRET")
     naver_datalab_base_url: str = Field(
