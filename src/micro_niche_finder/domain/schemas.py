@@ -20,7 +20,29 @@ class SeedCategoryRead(BaseModel):
     created_at: datetime
 
 
+class SeedCategorySuggestion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    description: str
+    rationale: str
+
+
+class SeedCategoryDiscoveryPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seeds: list[SeedCategorySuggestion]
+
+
+class SeedCategoryDiscoveryResult(BaseModel):
+    prompt_version: str = "seed_generation.v1"
+    schema_version: str = "1.0"
+    seeds: list[SeedCategorySuggestion]
+
+
 class ProblemCandidateGenerated(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     seed_category: str
     persona: str
     job_to_be_done: str
@@ -33,6 +55,12 @@ class ProblemCandidateGenerated(BaseModel):
     query_candidates: list[str]
 
 
+class CandidateGenerationPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    candidates: list[ProblemCandidateGenerated]
+
+
 class CandidateGenerationResult(BaseModel):
     prompt_version: str = "candidate_generation.v1"
     schema_version: str = "1.0"
@@ -40,12 +68,14 @@ class CandidateGenerationResult(BaseModel):
 
 
 class QueryExpansionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     seed_category: str
     persona: str
     canonical_name: str
     expanded_queries: list[str]
-    commercial_queries: list[str] = Field(default_factory=list)
-    informational_queries: list[str] = Field(default_factory=list)
+    commercial_queries: list[str]
+    informational_queries: list[str]
 
 
 class QueryGroupNormalized(BaseModel):
@@ -174,6 +204,8 @@ class FinalAnalysisInput(BaseModel):
 
 
 class FinalAnalysisOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     niche_name: str
     persona: str
     problem_summary: str

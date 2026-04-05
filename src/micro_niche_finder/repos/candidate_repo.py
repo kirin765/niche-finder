@@ -19,6 +19,10 @@ class SeedCategoryRepository:
         stmt = select(SeedCategory).where(SeedCategory.id == seed_category_id)
         return self.session.scalar(stmt)
 
+    def get_by_name(self, name: str) -> SeedCategory | None:
+        stmt = select(SeedCategory).where(SeedCategory.name == name)
+        return self.session.scalar(stmt)
+
     def list_all(self) -> list[SeedCategory]:
         stmt = select(SeedCategory).order_by(SeedCategory.created_at.desc())
         return list(self.session.scalars(stmt))

@@ -83,6 +83,12 @@ Bootstrapping schedules for existing query groups:
 python scripts/bootstrap_collection_schedules.py
 ```
 
+Generating diverse seeds with LLM and bootstrapping pipelines:
+
+```bash
+python -m apps.worker.bootstrap_auto_seeds --seed-count 5 --candidate-count 5 --top-k 3
+```
+
 Running one budgeted collector cycle:
 
 ```bash

@@ -27,11 +27,15 @@ class NaverDataLabService:
     ) -> DataLabRequest:
         end_date = date.today()
         start_date = end_date - timedelta(weeks=weeks)
+        cleaned_queries = list(dict.fromkeys(" ".join(query.strip().split()) for query in queries if query.strip()))
+        limited_queries = cleaned_queries[:20]
+        if not limited_queries:
+            limited_queries = [group_name[:50]]
         return DataLabRequest(
             startDate=start_date,
             endDate=end_date,
             timeUnit=time_unit,
-            keywordGroups=[{"groupName": group_name, "keywords": queries}],
+            keywordGroups=[{"groupName": group_name[:50], "keywords": limited_queries}],
             device=device,
             ages=ages,
             gender=gender,
