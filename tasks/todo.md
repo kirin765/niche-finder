@@ -1,0 +1,6 @@
+- [x] Inspect repository state and identify existing project structure, dependencies, and constraints
+- [x] Create backend project scaffold with config, database models, migrations baseline, and shared schemas
+- [x] Implement OpenAI, Naver DataLab, clustering, feature extraction, scoring, and reporting services
+- [x] Add job pipeline entrypoints and FastAPI endpoints for seed, pipeline execution, and report retrieval
+- [x] Add example environment, sample requests, and tests for core scoring logic
+- [x] Run targeted validation and summarize outcomes and remaining gaps

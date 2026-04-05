@@ -1,0 +1,39 @@
+[project]
+name = "micro-niche-finder"
+version = "0.1.0"
+description = "Production-oriented service for discovering Korean micro niche SaaS opportunities."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.14.1",
+  "fastapi>=0.115.12",
+  "httpx>=0.28.1",
+  "openai>=1.75.0",
+  "psycopg[binary]>=3.2.6",
+  "pydantic>=2.11.3",
+  "pydantic-settings>=2.8.1",
+  "python-dateutil>=2.9.0.post0",
+  "sqlalchemy>=2.0.40",
+  "tenacity>=9.1.2",
+  "uvicorn>=0.34.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.5",
+  "pytest-asyncio>=0.26.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

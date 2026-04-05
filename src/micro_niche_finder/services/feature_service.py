@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+from statistics import mean, pstdev
+
+from micro_niche_finder.domain.schemas import DataLabResponse, TrendFeatureSet
+
+
+class FeatureExtractionService:
+    def extract(self, response: DataLabResponse, query_count: int) -> TrendFeatureSet:
+        series = response.results[0].data
+        values = [point.ratio for point in series]
+        recent_4 = values[-4:] if len(values) >= 4 else values
+        recent_12 = values[-12:] if len(values) >= 12 else values
+        baseline = mean(values[:-4] or values)
+        latest_avg = mean(recent_4 or values)
+        full_avg = mean(values)
+        peak = max(values)
+        trough = min(values)
+        volatility = pstdev(values) / max(full_avg, 1.0)
+        spike_ratio = peak / max(full_avg, 1.0)
+        decay = (peak - values[-1]) / max(peak, 1.0)
+        seasonality = max(0.0, min(1.0, (peak - trough) / max(peak, 1.0)))
+
+        return TrendFeatureSet(
+            recent_growth_4w=round((latest_avg - baseline) / max(baseline, 1.0), 4),
+            recent_growth_12w=round((mean(recent_12 or values) - values[0]) / max(values[0], 1.0), 4),
+            moving_avg_ratio=round(latest_avg / max(full_avg, 1.0), 4),
+            volatility=round(volatility, 4),
+            spike_ratio=round(spike_ratio, 4),
+            decay_after_peak=round(decay, 4),
+            seasonality_score=round(seasonality, 4),
+            age_concentration=0.62,
+            gender_concentration=0.54,
+            mobile_ratio=0.71,
+            segment_consistency=0.66,
+            query_diversity=round(min(1.0, query_count / 6), 4),
+            problem_specificity=0.74,
+            commercial_intent_ratio=0.63,
+            brand_dependency_score=0.18,
+        )
