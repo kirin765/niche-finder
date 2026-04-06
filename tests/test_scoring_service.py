@@ -11,10 +11,6 @@ def make_features(**overrides) -> TrendFeatureSet:
         "spike_ratio": 1.2,
         "decay_after_peak": 0.1,
         "seasonality_score": 0.22,
-        "age_concentration": 0.64,
-        "gender_concentration": 0.56,
-        "mobile_ratio": 0.7,
-        "segment_consistency": 0.72,
         "query_diversity": 0.75,
         "problem_specificity": 0.8,
         "commercial_intent_ratio": 0.68,
@@ -22,6 +18,9 @@ def make_features(**overrides) -> TrendFeatureSet:
         "online_demand_score": 0.72,
         "market_size_sufficiency_score": 0.69,
         "online_gtm_efficiency_score": 0.74,
+        "market_size_ceiling_score": 0.82,
+        "competitive_whitespace_score": 0.71,
+        "keyword_difficulty_score": 0.38,
     }
     base.update(overrides)
     return TrendFeatureSet(**base)
@@ -105,6 +104,41 @@ def test_low_online_demand_and_gtm_are_penalized() -> None:
     assert score.online_demand < 0.4
     assert score.online_gtm_efficiency < 0.3
     assert score.penalties >= 0.18
+
+
+def test_large_market_and_saturated_serp_are_penalized() -> None:
+    service = ScoringService()
+    candidate = make_candidate(
+        persona="전국 이커머스 운영팀",
+        job_to_be_done="전사 셀러 운영 플랫폼을 도입한다",
+        pain="여러 팀이 쓰는 올인원 운영 도구가 필요하다",
+        query_candidates=["이커머스 운영 플랫폼", "셀러 CRM", "올인원 ERP"],
+    )
+    features = make_features(
+        market_size_ceiling_score=0.18,
+        competitive_whitespace_score=0.2,
+        keyword_difficulty_score=0.85,
+        online_demand_score=0.78,
+        market_size_sufficiency_score=0.9,
+    )
+
+    score = service.score(candidate, features)
+
+    assert score.market_size_ceiling < 0.25
+    assert score.competitive_whitespace == 0.2
+    assert score.keyword_difficulty < 0.2
+    assert score.penalties >= 0.24
+    assert score.final_score < 70
+
+
+def test_low_keyword_difficulty_improves_search_led_candidate() -> None:
+    service = ScoringService()
+    easy = service.score(make_candidate(), make_features(keyword_difficulty_score=0.22))
+    hard = service.score(make_candidate(), make_features(keyword_difficulty_score=0.88))
+
+    assert easy.keyword_difficulty > hard.keyword_difficulty
+    assert hard.penalties > easy.penalties
+    assert easy.final_score > hard.final_score
 
 
 def test_manual_narrow_operator_workflow_gets_solo_builder_boost() -> None:

@@ -82,3 +82,6 @@ def test_build_online_gtm_context_classifies_search_channels() -> None:
     assert context.channel_counts["government"] == 1
     assert "네이버 검색" in context.channel_signals
     assert context.community_presence_score == 0.25
+    assert context.competitor_domains == ["crm-example.com"]
+    assert context.brand_concentration_score == 1.0
+    assert context.competitive_whitespace_score == 0.6375

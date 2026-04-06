@@ -334,6 +334,7 @@ class PipelineService:
             features = compute_features.run(
                 response=trend_response,
                 query_count=len(group.queries),
+                queries=group.queries,
                 feature_service=self.feature_service,
             )
             combined_gtm_context = combine_online_gtm_contexts(
@@ -372,13 +373,85 @@ class PipelineService:
                     google_weight=self.naver_search_service.settings.search_weight_google_demand,
                 )
                 evidence_online_demand = min(1.0, max(features.online_demand_score, evidence_online_demand))
+                evidence_whitespace = combine_search_channel_scores(
+                    naver_score=(
+                        online_gtm_context.competitive_whitespace_score
+                        if online_gtm_context is not None
+                        else None
+                    ),
+                    google_score=(
+                        google_online_gtm_context.competitive_whitespace_score
+                        if google_online_gtm_context is not None
+                        else None
+                    ),
+                    naver_weight=self.naver_search_service.settings.search_weight_naver_gtm,
+                    google_weight=self.naver_search_service.settings.search_weight_google_gtm,
+                )
+                evidence_keyword_difficulty = combine_search_channel_scores(
+                    naver_score=(
+                        self.naver_search_service.channel_classifier.keyword_difficulty_from_context(online_gtm_context)
+                        if online_gtm_context is not None
+                        else None
+                    ),
+                    google_score=(
+                        self.google_search_service.channel_classifier.keyword_difficulty_from_context(google_online_gtm_context)
+                        if google_online_gtm_context is not None
+                        else None
+                    ),
+                    naver_weight=self.naver_search_service.settings.search_weight_naver_gtm,
+                    google_weight=self.naver_search_service.settings.search_weight_google_gtm,
+                )
+                evidence_brand_dependency = combine_search_channel_scores(
+                    naver_score=(
+                        online_gtm_context.brand_concentration_score
+                        if online_gtm_context is not None
+                        else None
+                    ),
+                    google_score=(
+                        google_online_gtm_context.brand_concentration_score
+                        if google_online_gtm_context is not None
+                        else None
+                    ),
+                    naver_weight=self.naver_search_service.settings.search_weight_naver_gtm,
+                    google_weight=self.naver_search_service.settings.search_weight_google_gtm,
+                )
+                market_size_ceiling = estimate_market_size_ceiling_score(
+                    market_size_context=market_size_context,
+                    naver_total_results=search_evidence_context.total_results if search_evidence_context else None,
+                    google_total_results=(
+                        int(google_response.searchInformation.totalResults)
+                        if "google_response" in locals() and google_online_gtm_context is not None
+                        else None
+                    ),
+                )
                 features = features.model_copy(
                     update={
                         "online_gtm_efficiency_score": round(evidence_online_gtm, 4),
                         "online_demand_score": round(evidence_online_demand, 4),
+                        "competitive_whitespace_score": round(max(features.competitive_whitespace_score, evidence_whitespace), 4),
+                        "brand_dependency_score": round(max(features.brand_dependency_score, evidence_brand_dependency), 4),
+                        "keyword_difficulty_score": round(max(features.keyword_difficulty_score, evidence_keyword_difficulty), 4),
+                        "market_size_ceiling_score": round(market_size_ceiling, 4),
                     }
                 )
                 online_gtm_context = combined_gtm_context
+            else:
+                features = features.model_copy(
+                    update={
+                        "market_size_ceiling_score": round(
+                            estimate_market_size_ceiling_score(
+                                market_size_context=market_size_context,
+                                naver_total_results=search_evidence_context.total_results if search_evidence_context else None,
+                                google_total_results=(
+                                    int(google_response.searchInformation.totalResults)
+                                    if "google_response" in locals()
+                                    else None
+                                ),
+                            ),
+                            4,
+                        )
+                    }
+                )
             trend_repo.upsert_feature(query_group_id=query_entity.id, **features.model_dump())
             breakdown = score_candidates.run(
                 candidate=candidate,
@@ -483,11 +556,14 @@ def combine_online_gtm_contexts(
         "community_presence_score",
         "seo_discoverability_score",
         "competitor_presence_score",
+        "brand_concentration_score",
+        "competitive_whitespace_score",
     )
     merged_counts = {
         key: naver_context.channel_counts.get(key, 0) + google_context.channel_counts.get(key, 0)
         for key in set(naver_context.channel_counts) | set(google_context.channel_counts)
     }
+    merged_domains = list(dict.fromkeys([*naver_context.competitor_domains, *google_context.competitor_domains]))
 
     merged_scores = {}
     for field in score_fields:
@@ -504,9 +580,12 @@ def combine_online_gtm_contexts(
         query=naver_context.query,
         channel_signals=merged_signals,
         channel_counts=merged_counts,
+        competitor_domains=merged_domains,
         community_presence_score=merged_scores["community_presence_score"],
         seo_discoverability_score=merged_scores["seo_discoverability_score"],
         competitor_presence_score=merged_scores["competitor_presence_score"],
+        brand_concentration_score=merged_scores["brand_concentration_score"],
+        competitive_whitespace_score=merged_scores["competitive_whitespace_score"],
         summary=(
             "검색 채널 근거를 Naver와 Google에서 합산했다. "
             f"Naver 비중 {naver_weight:.2f}, Google 비중 {google_weight:.2f}를 사용했다."
@@ -523,3 +602,47 @@ def _context_demand_signal(context: OnlineGTMContext) -> float:
             + (context.community_presence_score or 0.0) * 0.2
         ),
     )
+
+
+def estimate_market_size_ceiling_score(
+    *,
+    market_size_context: MarketSizeContext | None,
+    naver_total_results: int | None,
+    google_total_results: int | None,
+) -> float:
+    observed_business_scale = None
+    if market_size_context is not None:
+        observed_business_scale = market_size_context.business_count or market_size_context.employee_count
+
+    business_score = None
+    if observed_business_scale is not None:
+        if observed_business_scale <= 3_000:
+            business_score = 0.96
+        elif observed_business_scale <= 20_000:
+            business_score = 0.86
+        elif observed_business_scale <= 80_000:
+            business_score = 0.68
+        elif observed_business_scale <= 200_000:
+            business_score = 0.4
+        else:
+            business_score = 0.2
+
+    totals = [value for value in (naver_total_results, google_total_results) if value is not None]
+    serp_score = None
+    if totals:
+        average_total = sum(totals) / len(totals)
+        if average_total <= 1_000:
+            serp_score = 0.9
+        elif average_total <= 10_000:
+            serp_score = 0.72
+        elif average_total <= 100_000:
+            serp_score = 0.42
+        else:
+            serp_score = 0.18
+
+    available = [value for value in (business_score, serp_score) if value is not None]
+    if not available:
+        return 0.7
+    if len(available) == 1:
+        return available[0]
+    return round((business_score * 0.65) + (serp_score * 0.35), 4)

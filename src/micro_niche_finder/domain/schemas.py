@@ -130,10 +130,6 @@ class TrendFeatureSet(BaseModel):
     spike_ratio: float
     decay_after_peak: float
     seasonality_score: float
-    age_concentration: float
-    gender_concentration: float
-    mobile_ratio: float
-    segment_consistency: float
     query_diversity: float
     problem_specificity: float
     commercial_intent_ratio: float
@@ -141,6 +137,9 @@ class TrendFeatureSet(BaseModel):
     online_demand_score: float
     market_size_sufficiency_score: float
     online_gtm_efficiency_score: float
+    market_size_ceiling_score: float
+    competitive_whitespace_score: float
+    keyword_difficulty_score: float
 
 
 class CollectionTarget(BaseModel):
@@ -282,9 +281,12 @@ class OnlineGTMContext(BaseModel):
     query: str
     channel_signals: list[str] = Field(default_factory=list)
     channel_counts: dict[str, int] = Field(default_factory=dict)
+    competitor_domains: list[str] = Field(default_factory=list)
     community_presence_score: float | None = None
     seo_discoverability_score: float | None = None
     competitor_presence_score: float | None = None
+    brand_concentration_score: float | None = None
+    competitive_whitespace_score: float | None = None
     summary: str
 
 
@@ -415,6 +417,9 @@ class ScoreBreakdown(BaseModel):
     online_demand: float
     market_size_sufficiency: float
     online_gtm_efficiency: float
+    market_size_ceiling: float
+    competitive_whitespace: float
+    keyword_difficulty: float
     implementation_feasibility: float
     penalties: float
     final_score: float

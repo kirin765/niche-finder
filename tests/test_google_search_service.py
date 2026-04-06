@@ -49,6 +49,8 @@ def test_google_search_service_builds_online_gtm_context() -> None:
     assert context.channel_counts["competitor"] == 1
     assert "블로그 SEO" in context.channel_signals
     assert context.competitor_presence_score == 0.5
+    assert context.competitor_domains == ["saas.example.com"]
+    assert context.competitive_whitespace_score == 0.4875
 
 
 def test_google_search_service_falls_back_on_permission_error(monkeypatch) -> None:

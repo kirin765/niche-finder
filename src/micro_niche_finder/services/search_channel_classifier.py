@@ -27,15 +27,28 @@ class SearchChannelClassifier:
     ) -> OnlineGTMContext:
         counts = {channel: 0 for channel in CHANNEL_ORDER}
         labels: list[str] = []
+        competitor_domains: list[str] = []
 
         for document in documents:
             channel = self._classify_document(document)
             counts[channel] += 1
             labels.append(channel)
+            if channel == "competitor":
+                host = urlparse(document.link or "").netloc.lower()
+                if host:
+                    competitor_domains.append(host)
 
         community_score = self._ratio(counts["community"], len(documents))
         content_score = self._ratio(counts["blog_content"] + counts["marketplace_platform"], len(documents))
         competitor_score = self._ratio(counts["competitor"], len(documents))
+        unique_competitor_domains = list(dict.fromkeys(competitor_domains))
+        brand_concentration = self._brand_concentration_score(competitor_domains)
+        whitespace = self._competitive_whitespace_score(
+            total_documents=len(documents),
+            competitor_count=counts["competitor"],
+            unique_competitor_domains=len(unique_competitor_domains),
+            brand_concentration_score=brand_concentration,
+        )
         signals = self._merge_signals(counts, suggested_channels or [])
 
         summary = (
@@ -47,9 +60,12 @@ class SearchChannelClassifier:
             query=query,
             channel_signals=signals,
             channel_counts=counts,
+            competitor_domains=unique_competitor_domains,
             community_presence_score=round(community_score, 4),
             seo_discoverability_score=round(content_score, 4),
             competitor_presence_score=round(competitor_score, 4),
+            brand_concentration_score=round(brand_concentration, 4),
+            competitive_whitespace_score=round(whitespace, 4),
             summary=summary,
         )
 
@@ -66,17 +82,66 @@ class SearchChannelClassifier:
         competitor = self._ratio(context.channel_counts.get("competitor", 0), total)
         government = self._ratio(context.channel_counts.get("government", 0), total)
         noise = self._ratio(context.channel_counts.get("noise", 0), total)
+        whitespace = context.competitive_whitespace_score if context.competitive_whitespace_score is not None else 0.5
 
         score = (community * 0.3) + (content * 0.3) + (competitor * 0.25) + (government * 0.05)
         score += min(0.1, len(context.channel_signals) * 0.025)
+        score += whitespace * 0.05
         score -= noise * 0.2
         return round(max(0.0, min(1.0, score)), 4)
+
+    def keyword_difficulty_from_context(self, context: OnlineGTMContext) -> float:
+        total = sum(context.channel_counts.values())
+        if total == 0:
+            return 0.5
+
+        competitor = self._ratio(context.channel_counts.get("competitor", 0), total)
+        government = self._ratio(context.channel_counts.get("government", 0), total)
+        noise = self._ratio(context.channel_counts.get("noise", 0), total)
+        content = self._ratio(
+            context.channel_counts.get("blog_content", 0) + context.channel_counts.get("marketplace_platform", 0),
+            total,
+        )
+        community = self._ratio(context.channel_counts.get("community", 0), total)
+        brand_concentration = context.brand_concentration_score or 0.0
+        whitespace = context.competitive_whitespace_score or 0.5
+
+        difficulty = (
+            (competitor * 0.35)
+            + (brand_concentration * 0.25)
+            + (government * 0.15)
+            + (noise * 0.1)
+            + ((1.0 - whitespace) * 0.1)
+            + ((1.0 - min(1.0, content + community)) * 0.05)
+        )
+        return round(max(0.0, min(1.0, difficulty)), 4)
 
     @staticmethod
     def _ratio(value: int, total: int) -> float:
         if total <= 0:
             return 0.0
         return value / total
+
+    def _brand_concentration_score(self, competitor_domains: list[str]) -> float:
+        if not competitor_domains:
+            return 0.0
+        max_count = max(competitor_domains.count(domain) for domain in set(competitor_domains))
+        return self._ratio(max_count, len(competitor_domains))
+
+    def _competitive_whitespace_score(
+        self,
+        *,
+        total_documents: int,
+        competitor_count: int,
+        unique_competitor_domains: int,
+        brand_concentration_score: float,
+    ) -> float:
+        if total_documents <= 0:
+            return 0.5
+        competitor_ratio = self._ratio(competitor_count, total_documents)
+        domain_saturation = min(1.0, unique_competitor_domains / 4)
+        saturation = (competitor_ratio * 0.6) + (domain_saturation * 0.25) + (brand_concentration_score * 0.15)
+        return max(0.0, min(1.0, 1.0 - saturation))
 
     def _classify_document(self, document: SearchResultDocument) -> str:
         text = " ".join(part for part in [document.title, document.snippet or ""] if part).lower()

@@ -9,13 +9,16 @@ from micro_niche_finder.services.public_data_opportunity_service import PublicDa
 
 @dataclass(frozen=True, slots=True)
 class ScoreWeights:
-    repeated_pain: float = 0.20
-    problem_intensity: float = 0.16
-    payment_likelihood: float = 0.14
-    online_demand: float = 0.16
-    market_size_sufficiency: float = 0.12
-    online_gtm_efficiency: float = 0.14
-    implementation_feasibility: float = 0.08
+    repeated_pain: float = 0.17
+    problem_intensity: float = 0.14
+    payment_likelihood: float = 0.12
+    online_demand: float = 0.15
+    market_size_sufficiency: float = 0.10
+    online_gtm_efficiency: float = 0.12
+    market_size_ceiling: float = 0.10
+    competitive_whitespace: float = 0.06
+    keyword_difficulty: float = 0.08
+    implementation_feasibility: float = 0.04
 
 
 class ScoringService:
@@ -30,6 +33,9 @@ class ScoringService:
         online_demand = self._online_demand_score(candidate, features)
         market_size_sufficiency = self._market_size_sufficiency_score(candidate, features)
         online_gtm_efficiency = self._online_gtm_efficiency_score(candidate, features)
+        market_size_ceiling = self._market_size_ceiling_score(features)
+        competitive_whitespace = self._competitive_whitespace_score(features)
+        keyword_difficulty = self._keyword_difficulty_score(features)
         implementation = self._implementation_fit(candidate, features)
         penalties = self._penalties(candidate, features)
 
@@ -40,6 +46,9 @@ class ScoringService:
             + online_demand * self.weights.online_demand
             + market_size_sufficiency * self.weights.market_size_sufficiency
             + online_gtm_efficiency * self.weights.online_gtm_efficiency
+            + market_size_ceiling * self.weights.market_size_ceiling
+            + competitive_whitespace * self.weights.competitive_whitespace
+            + keyword_difficulty * self.weights.keyword_difficulty
             + implementation * self.weights.implementation_feasibility
             - penalties
         )
@@ -51,13 +60,18 @@ class ScoringService:
             online_demand=round(online_demand, 4),
             market_size_sufficiency=round(market_size_sufficiency, 4),
             online_gtm_efficiency=round(online_gtm_efficiency, 4),
+            market_size_ceiling=round(market_size_ceiling, 4),
+            competitive_whitespace=round(competitive_whitespace, 4),
+            keyword_difficulty=round(keyword_difficulty, 4),
             implementation_feasibility=round(implementation, 4),
             penalties=round(penalties, 4),
             final_score=final_score,
             reasoning_summary=(
                 f"repeat={repeated_pain:.2f}, problem={problem_intensity:.2f}, payment={payment:.2f}, "
                 f"online_demand={online_demand:.2f}, market={market_size_sufficiency:.2f}, "
-                f"online_gtm={online_gtm_efficiency:.2f}, implementation={implementation:.2f}, "
+                f"online_gtm={online_gtm_efficiency:.2f}, ceiling={market_size_ceiling:.2f}, "
+                f"whitespace={competitive_whitespace:.2f}, keyword={keyword_difficulty:.2f}, "
+                f"implementation={implementation:.2f}, "
                 f"penalties={penalties:.2f}"
             ),
         )
@@ -89,25 +103,6 @@ class ScoringService:
         intensity += min(0.18, features.commercial_intent_ratio * 0.18)
         return min(intensity, 1.0)
 
-    def _persistent_signal(self, features: TrendFeatureSet) -> float:
-        growth = min(max((features.recent_growth_12w + 0.25), 0.0), 1.0)
-        stability = 1.0 - min(features.volatility, 1.0)
-        anti_spike = 1.0 - min(max(features.spike_ratio - 1.0, 0.0), 1.0)
-        anti_decay = 1.0 - min(max(features.decay_after_peak, 0.0), 1.0)
-        return max(0.0, min(1.0, (growth * 0.35) + (stability * 0.25) + (anti_spike * 0.2) + (anti_decay * 0.2)))
-
-    def _segment_focus(self, features: TrendFeatureSet) -> float:
-        return max(
-            0.0,
-            min(
-                1.0,
-                (features.age_concentration * 0.3)
-                + (features.gender_concentration * 0.2)
-                + (features.mobile_ratio * 0.15)
-                + (features.segment_consistency * 0.35),
-            ),
-        )
-
     def _online_demand_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
         score = features.online_demand_score * 0.75
         score += self._fit_score(candidate.market_size_confidence) * 0.05
@@ -128,6 +123,15 @@ class ScoringService:
         score += self._fit_score(candidate.online_gtm_fit) * 0.2
         score += channels * 0.1
         return max(0.0, min(1.0, score))
+
+    def _market_size_ceiling_score(self, features: TrendFeatureSet) -> float:
+        return max(0.0, min(1.0, features.market_size_ceiling_score))
+
+    def _competitive_whitespace_score(self, features: TrendFeatureSet) -> float:
+        return max(0.0, min(1.0, features.competitive_whitespace_score))
+
+    def _keyword_difficulty_score(self, features: TrendFeatureSet) -> float:
+        return max(0.0, min(1.0, 1.0 - features.keyword_difficulty_score))
 
     def _implementation_fit(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
         fit = self._fit_score(candidate.software_fit)
@@ -163,6 +167,12 @@ class ScoringService:
         if features.online_demand_score < 0.3:
             penalties += 0.1
         if features.online_gtm_efficiency_score < 0.25:
+            penalties += 0.08
+        if features.market_size_ceiling_score < 0.3:
+            penalties += 0.1
+        if features.competitive_whitespace_score < 0.25:
+            penalties += 0.06
+        if features.keyword_difficulty_score > 0.75:
             penalties += 0.08
         penalties += self._broad_scope_signal(candidate) * 0.06
         return penalties
