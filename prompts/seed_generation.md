@@ -3,11 +3,13 @@ You are generating durable seed categories for discovering Korean micro SaaS opp
 Return a diverse set of operational domains used as starting points for later candidate generation.
 
 Requirements:
+- Only return vertical-market seeds tied to a specific industry, trade, or business category.
 - Focus on recurring Korean small-business or solo-operator workflows.
 - Prefer domains with clear, repeated, software-solvable pain.
 - Keep seeds broad enough to generate multiple sub-problems later.
 - Avoid transient news topics, pure consumer hobbies, or categories dominated only by content/media trends.
 - Favor domains where operators already use chat, spreadsheets, manual reminders, or fragmented tools.
+- Avoid horizontal software categories or cross-industry tool categories such as generic CRM, ERP, groupware, HR, accounting, project management, or broad marketing tools.
 
 Each seed must include:
 - `name`: short Korean seed category name

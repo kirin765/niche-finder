@@ -22,8 +22,14 @@ For Google Custom Search, set `GOOGLE_CUSTOM_SEARCH_API_KEY` and `GOOGLE_CUSTOM_
 For Naver Search, you can either set `NAVER_SEARCH_CLIENT_ID` / `NAVER_SEARCH_CLIENT_SECRET` or let it reuse the Naver DataLab app credentials.
 For Naver Shopping Insight, set `NAVER_SHOPPING_CATEGORY_OPTIONS_JSON` to the shopping categories you want the LLM to map into. This source is most useful for ecommerce, seller, and product niches.
 
-For KOSIS market sizing, set `KOSIS_API_KEY`, `KOSIS_TBL_ID`, `KOSIS_EMPLOYEE_ITM_ID`, and `KOSIS_INDUSTRY_OPTIONS_JSON`.
-`KOSIS_INDUSTRY_OPTIONS_JSON` should be a JSON array like `[{"code":"P","label":"교육 서비스업","description":"학원, 교육 서비스"}]`.
+For KOSIS market sizing, either:
+
+- keep using the legacy single-profile fields `KOSIS_TBL_ID`, `KOSIS_EMPLOYEE_ITM_ID`, and `KOSIS_INDUSTRY_OPTIONS_JSON`, or
+- prefer the newer `KOSIS_PROFILE_OPTIONS_JSON` plus `KOSIS_INDUSTRY_OPTIONS_JSON`
+
+`KOSIS_INDUSTRY_OPTIONS_JSON` can still be a JSON array like `[{"code":"P","label":"교육 서비스업","description":"학원, 교육 서비스"}]`, but it can now also be a mapping object like `{"classification":"KSIC10","level":"중분류","mapping":{"스마트스토어":"G47912"}}`.
+The recommended profile-based structure for KOSIS is documented in `README.md` under the KOSIS mapping section and expands the old employee-count model into structure, revenue, growth, demand, and regional profiles.
+For daily report delivery, set the Telegram fields if you want bot delivery, and set the Gmail fields if you want email delivery. The worker sends to every configured channel. Required Telegram fields are `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. Required Gmail fields are `GMAIL_USERNAME`, `GMAIL_APP_PASSWORD`, `GMAIL_FROM_EMAIL`, and `GMAIL_TO_EMAILS`. For Gmail, use an app password rather than your normal account password.
 
 ## Database
 
@@ -48,6 +54,8 @@ sudo cp deploy/systemd/micro-niche-naver-shopping-insight-collector.service /etc
 sudo cp deploy/systemd/micro-niche-naver-shopping-insight-collector.timer /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-kosis-collector.service /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-kosis-collector.timer /etc/systemd/system/
+sudo cp deploy/systemd/micro-niche-daily-report.service /etc/systemd/system/
+sudo cp deploy/systemd/micro-niche-daily-report.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now micro-niche-api.service
 sudo systemctl enable --now micro-niche-collector.timer
@@ -55,6 +63,7 @@ sudo systemctl enable --now micro-niche-google-collector.timer
 sudo systemctl enable --now micro-niche-naver-search-collector.timer
 sudo systemctl enable --now micro-niche-naver-shopping-insight-collector.timer
 sudo systemctl enable --now micro-niche-kosis-collector.timer
+sudo systemctl enable --now micro-niche-daily-report.timer
 ```
 
 ## What Runs
@@ -70,6 +79,8 @@ sudo systemctl enable --now micro-niche-kosis-collector.timer
 - `micro-niche-naver-shopping-insight-collector.service`: samples Naver shopping-click category trends as supplementary commerce evidence.
 - `micro-niche-kosis-collector.timer`: refreshes KOSIS employee-count market-size references every 6 hours.
 - `micro-niche-kosis-collector.service`: samples KOSIS employee-count data for mapped industries.
+- `micro-niche-daily-report.timer`: runs a daily report at 09:00 KST.
+- `micro-niche-daily-report.service`: generates fresh reports from the current seed set and sends them to every configured delivery channel.
 
 ## Manual checks
 
@@ -80,17 +91,20 @@ sudo systemctl status micro-niche-google-collector.timer
 sudo systemctl status micro-niche-naver-search-collector.timer
 sudo systemctl status micro-niche-naver-shopping-insight-collector.timer
 sudo systemctl status micro-niche-kosis-collector.timer
+sudo systemctl status micro-niche-daily-report.timer
 sudo journalctl -u micro-niche-collector.service -n 100 --no-pager
 sudo journalctl -u micro-niche-google-collector.service -n 100 --no-pager
 sudo journalctl -u micro-niche-naver-search-collector.service -n 100 --no-pager
 sudo journalctl -u micro-niche-naver-shopping-insight-collector.service -n 100 --no-pager
 sudo journalctl -u micro-niche-kosis-collector.service -n 100 --no-pager
+sudo journalctl -u micro-niche-daily-report.service -n 100 --no-pager
 source .venv/bin/activate
 python -m apps.worker.run_collector --max-calls 5
 python -m apps.worker.run_google_collector --max-calls 3
 python -m apps.worker.run_naver_search_collector --max-calls 3
 python -m apps.worker.run_naver_shopping_insight_collector
 python -m apps.worker.run_kosis_collector --max-calls 3
+python -m apps.worker.run_daily_report
 ```
 
 ## Budget model

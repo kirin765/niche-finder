@@ -6,7 +6,8 @@ import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from micro_niche_finder.config.settings import get_settings
-from micro_niche_finder.domain.schemas import NaverSearchRequest, NaverSearchResponse, SearchEvidenceContext
+from micro_niche_finder.domain.schemas import NaverSearchRequest, NaverSearchResponse, OnlineGTMContext, SearchEvidenceContext
+from micro_niche_finder.services.search_channel_classifier import SearchChannelClassifier, SearchResultDocument
 
 
 class NaverSearchService:
@@ -15,6 +16,7 @@ class NaverSearchService:
 
     def __init__(self) -> None:
         self.settings = get_settings()
+        self.channel_classifier = SearchChannelClassifier()
 
     def credentials(self) -> tuple[str | None, str | None]:
         client_id = self.settings.naver_search_client_id or self.settings.naver_datalab_client_id
@@ -59,6 +61,27 @@ class NaverSearchService:
             total_results=response.total,
             top_titles=top_titles,
             summary=summary,
+        )
+
+    def build_online_gtm_context(
+        self,
+        *,
+        query: str,
+        response: NaverSearchResponse,
+        suggested_channels: list[str] | None = None,
+    ) -> OnlineGTMContext:
+        documents = [
+            SearchResultDocument(
+                title=self._clean_text(item.title),
+                link=item.link,
+                snippet=self._clean_text(item.description or ""),
+            )
+            for item in response.items
+        ]
+        return self.channel_classifier.classify_documents(
+            query=query,
+            documents=documents,
+            suggested_channels=suggested_channels,
         )
 
     def _mock_response(self, request: NaverSearchRequest) -> NaverSearchResponse:

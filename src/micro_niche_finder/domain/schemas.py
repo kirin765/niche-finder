@@ -51,8 +51,12 @@ class ProblemCandidateGenerated(BaseModel):
     current_workaround: list[str]
     software_fit: FitLevel
     payment_likelihood: FitLevel
+    online_gtm_fit: FitLevel
+    market_size_confidence: FitLevel
     risk_flags: list[str]
     query_candidates: list[str]
+    online_demand_hypothesis: str
+    online_acquisition_channels: list[str]
 
 
 class CandidateGenerationPayload(BaseModel):
@@ -134,6 +138,9 @@ class TrendFeatureSet(BaseModel):
     problem_specificity: float
     commercial_intent_ratio: float
     brand_dependency_score: float
+    online_demand_score: float
+    market_size_sufficiency_score: float
+    online_gtm_efficiency_score: float
 
 
 class CollectionTarget(BaseModel):
@@ -173,6 +180,59 @@ class KosisIndustrySelection(BaseModel):
     rationale: str
 
 
+class KosisProfileOption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    label: str
+    kind: str
+    tbl_id: str
+    metrics: dict[str, str]
+    static_params: dict[str, str] = Field(default_factory=dict)
+    industry_dimension_key: str | None = None
+    time_range: list[int] | None = None
+    applies_to_prefixes: list[str] = Field(default_factory=list)
+    exclude_prefixes: list[str] = Field(default_factory=list)
+
+
+class KosisProfileRequest(BaseModel):
+    profile_name: str
+    profile_label: str
+    profile_kind: str
+    metric_key: str
+    metric_item_id: str
+    source_label: str
+    source_table_id: str
+    industry_code: str
+    industry_label: str
+    start_year: int
+    end_year: int
+    params: dict[str, str]
+
+
+class KosisMetricPoint(BaseModel):
+    period: str
+    value: float
+
+
+class KosisProfileResponse(BaseModel):
+    profile_name: str
+    profile_label: str
+    profile_kind: str
+    metric_key: str
+    source_label: str
+    source_table_id: str
+    industry_code: str
+    industry_label: str
+    start_year: int
+    end_year: int
+    latest_value: float | None
+    cagr: float | None = None
+    regional_concentration: float | None = None
+    series: list[KosisMetricPoint] = Field(default_factory=list)
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class KosisEmployeeRequest(BaseModel):
     industry_code: str
     industry_label: str
@@ -197,6 +257,14 @@ class MarketSizeContext(BaseModel):
     industry_label: str
     reference_year: int
     employee_count: int | None
+    business_count: int | None = None
+    revenue: float | None = None
+    value_added: float | None = None
+    revenue_per_employee: float | None = None
+    employee_cagr: float | None = None
+    business_cagr: float | None = None
+    regional_concentration: float | None = None
+    profile_summaries: list[str] = Field(default_factory=list)
     summary: str
     rationale: str
 
@@ -207,6 +275,16 @@ class SearchEvidenceContext(BaseModel):
     query: str
     total_results: int | None
     top_titles: list[str] = Field(default_factory=list)
+    summary: str
+
+
+class OnlineGTMContext(BaseModel):
+    query: str
+    channel_signals: list[str] = Field(default_factory=list)
+    channel_counts: dict[str, int] = Field(default_factory=dict)
+    community_presence_score: float | None = None
+    seo_discoverability_score: float | None = None
+    competitor_presence_score: float | None = None
     summary: str
 
 
@@ -334,8 +412,9 @@ class ScoreBreakdown(BaseModel):
     repeated_pain: float
     problem_intensity: float
     payment_likelihood: float
-    persistent_signal: float
-    segment_focus: float
+    online_demand: float
+    market_size_sufficiency: float
+    online_gtm_efficiency: float
     implementation_feasibility: float
     penalties: float
     final_score: float
@@ -354,6 +433,7 @@ class FinalAnalysisInput(BaseModel):
     search_evidence_context: SearchEvidenceContext | None = None
     shopping_evidence_context: ShoppingEvidenceContext | None = None
     public_data_context: PublicDataContext | None = None
+    online_gtm_context: OnlineGTMContext | None = None
 
 
 class FinalAnalysisOutput(BaseModel):
@@ -368,10 +448,14 @@ class FinalAnalysisOutput(BaseModel):
     implementation_feasibility: str
     mvp_idea: list[str]
     go_to_market: list[str]
+    online_demand_summary: str
     market_size_summary: str
+    market_size_sufficiency_summary: str
     search_evidence_summary: str
     shopping_evidence_summary: str
     public_data_summary: str
+    online_gtm_summary: str
+    recommended_online_channels: list[str]
     risk_flags: list[str]
     recommended_priority: int
 

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from micro_niche_finder.domain.schemas import CollectionTarget, CollectorRunSummary, KosisIndustrySelection
+from micro_niche_finder.domain.schemas import CollectionTarget, CollectorRunSummary, KosisIndustrySelection, KosisProfileRequest
 from micro_niche_finder.repos.collection_repo import CollectionRepository
 from micro_niche_finder.repos.trend_repo import TrendRepository
 from micro_niche_finder.services.budget_allocator_service import BudgetAllocatorService
@@ -62,17 +62,29 @@ class KosisCollectorService:
             target = targets[schedule.next_target_index % len(targets)]
 
             try:
-                selection = KosisIndustrySelection.model_validate(target.metadata)
-                request = self.kosis_employee_service.build_request(selection)
-                response = self.kosis_employee_service.fetch(request)
+                if "profile_name" in target.metadata:
+                    request = KosisProfileRequest.model_validate(target.metadata)
+                    response = self.kosis_employee_service.fetch_profile(request)
+                    window_start = datetime(response.start_year, 1, 1, tzinfo=timezone.utc)
+                    window_end = datetime(response.end_year, 12, 31, tzinfo=timezone.utc)
+                    payload = response.model_dump(mode="json")
+                else:
+                    selection = KosisIndustrySelection.model_validate(target.metadata)
+                    legacy_request = self.kosis_employee_service.build_request(selection)
+                    legacy_response = self.kosis_employee_service.fetch(legacy_request)
+                    window_start = datetime(legacy_response.reference_year, 1, 1, tzinfo=timezone.utc)
+                    window_end = datetime(legacy_response.reference_year, 12, 31, tzinfo=timezone.utc)
+                    payload = legacy_response.model_dump(mode="json")
                 trend_repo.create_snapshot(
                     query_group_id=schedule.query_group_id,
                     source=self.SOURCE,
-                    window_start=datetime(response.reference_year, 1, 1, tzinfo=timezone.utc),
-                    window_end=datetime(response.reference_year, 12, 31, tzinfo=timezone.utc),
+                    window_start=window_start,
+                    window_end=window_end,
                     target_key=target.key,
-                    request_payload_json=request.model_dump(mode="json"),
-                    raw_response_json=response.model_dump(mode="json"),
+                    request_payload_json=(
+                        request.model_dump(mode="json") if "profile_name" in target.metadata else legacy_request.model_dump(mode="json")
+                    ),
+                    raw_response_json=payload,
                 )
 
                 schedule.last_collected_at = now

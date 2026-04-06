@@ -26,6 +26,9 @@ class FeatureExtractionService:
                 problem_specificity=0.4,
                 commercial_intent_ratio=0.2,
                 brand_dependency_score=0.0,
+                online_demand_score=0.25,
+                market_size_sufficiency_score=0.5,
+                online_gtm_efficiency_score=0.25,
             )
         recent_4 = values[-4:] if len(values) >= 4 else values
         recent_12 = values[-12:] if len(values) >= 12 else values
@@ -38,6 +41,31 @@ class FeatureExtractionService:
         spike_ratio = peak / max(full_avg, 1.0)
         decay = (peak - values[-1]) / max(peak, 1.0)
         seasonality = max(0.0, min(1.0, (peak - trough) / max(peak, 1.0)))
+
+        online_demand = max(
+            0.0,
+            min(
+                1.0,
+                (
+                    min(max((mean(recent_12 or values) - values[0]) / max(values[0], 1.0) + 0.25, 0.0), 1.0) * 0.45
+                    + 0.74 * 0.3
+                    + 0.63 * 0.25
+                ),
+            ),
+        )
+        market_size_sufficiency = max(0.0, min(1.0, 0.4 + min(1.0, query_count / 6) * 0.25 + 0.63 * 0.2 + 0.74 * 0.15))
+        online_gtm_efficiency = max(
+            0.0,
+            min(
+                1.0,
+                (
+                    0.63 * 0.4
+                    + 0.74 * 0.25
+                    + (1.0 - 0.18) * 0.2
+                    + min(1.0, query_count / 6) * 0.15
+                ),
+            ),
+        )
 
         return TrendFeatureSet(
             recent_growth_4w=round((latest_avg - baseline) / max(baseline, 1.0), 4),
@@ -55,4 +83,7 @@ class FeatureExtractionService:
             problem_specificity=0.74,
             commercial_intent_ratio=0.63,
             brand_dependency_score=0.18,
+            online_demand_score=round(online_demand, 4),
+            market_size_sufficiency_score=round(market_size_sufficiency, 4),
+            online_gtm_efficiency_score=round(online_gtm_efficiency, 4),
         )

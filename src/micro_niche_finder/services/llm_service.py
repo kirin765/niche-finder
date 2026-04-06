@@ -42,7 +42,8 @@ class OpenAIResearchService:
         user_prompt = (
             f"Seed category: {seed_category}\n"
             f"Candidate count target: {candidate_count}\n"
-            "Focus on Korean operational pain points for a solo founder."
+            "Focus on Korean operational pain points for a solo founder.\n"
+            "Constraint: return only vertical-market candidates for a specific industry or operator segment."
         )
         if not self.settings.openai_api_key:
             return self._mock_candidates(seed_category, candidate_count)
@@ -59,7 +60,8 @@ class OpenAIResearchService:
         user_prompt = (
             f"Seed count target: {seed_count}\n"
             "Goal: find diverse Korean operational domains where recurring, software-solvable pain points are likely.\n"
-            "Avoid celebrity/news/trend topics and prefer durable small-business workflows."
+            "Avoid celebrity/news/trend topics and prefer durable small-business workflows.\n"
+            "Constraint: return only vertical-market seeds, not horizontal software categories."
         )
         if not self.settings.openai_api_key:
             return self._mock_seed_categories(seed_count)
@@ -192,6 +194,8 @@ class OpenAIResearchService:
                 "current_workaround": ["엑셀", "수동 검색", "캡처"],
                 "software_fit": "high",
                 "payment_likelihood": "medium",
+                "online_gtm_fit": "high",
+                "market_size_confidence": "high",
                 "risk_flags": ["depends_on_external_platform"],
                 "query_candidates": [
                     "스마트스토어 경쟁사 가격 확인",
@@ -199,6 +203,8 @@ class OpenAIResearchService:
                     "경쟁상품 추적",
                     "상품 리뷰 모니터링",
                 ],
+                "online_demand_hypothesis": "셀러가 검색과 커뮤니티에서 가격 모니터링 도구를 반복적으로 찾을 가능성이 높다.",
+                "online_acquisition_channels": ["네이버 검색", "셀러 커뮤니티", "블로그 SEO"],
             },
             {
                 "seed_category": seed_category,
@@ -209,6 +215,8 @@ class OpenAIResearchService:
                 "current_workaround": ["카카오톡", "엑셀", "수기 메모"],
                 "software_fit": "high",
                 "payment_likelihood": "high",
+                "online_gtm_fit": "medium",
+                "market_size_confidence": "high",
                 "risk_flags": [],
                 "query_candidates": [
                     "학원 보강 관리",
@@ -216,6 +224,8 @@ class OpenAIResearchService:
                     "보강 일정 관리",
                     "학원 출결 관리",
                 ],
+                "online_demand_hypothesis": "학원 운영 검색 수요와 원장 대상 커뮤니티에서 운영툴 탐색 수요가 존재할 가능성이 높다.",
+                "online_acquisition_channels": ["네이버 검색", "원장 커뮤니티", "콘텐츠 SEO"],
             },
         ]
         items = (canned * ((candidate_count // len(canned)) + 1))[:candidate_count]
@@ -227,7 +237,7 @@ class OpenAIResearchService:
             persona=payload.persona,
             problem_summary=payload.problem_summary,
             saas_fit_score=int(round(payload.score_breakdown.final_score)),
-            trend_signal_score=int(round(payload.score_breakdown.persistent_signal * 100)),
+            trend_signal_score=int(round(payload.score_breakdown.online_demand * 100)),
             payment_likelihood="medium-high" if payload.score_breakdown.payment_likelihood >= 0.65 else "medium",
             implementation_feasibility=(
                 "high" if payload.score_breakdown.implementation_feasibility >= 0.7 else "medium"
@@ -239,10 +249,20 @@ class OpenAIResearchService:
                 "우선순위 알림",
             ],
             go_to_market=["네이버 검색 랜딩 페이지", "업계 커뮤니티", "실무형 블로그 SEO"],
+            online_demand_summary=(
+                payload.search_evidence_context.summary
+                if payload.search_evidence_context
+                else "온라인 검색 수요 근거는 아직 연결되지 않았다."
+            ),
             market_size_summary=(
                 payload.market_size_context.summary
                 if payload.market_size_context
                 else "시장 규모 참고 데이터는 아직 연결되지 않았다."
+            ),
+            market_size_sufficiency_summary=(
+                "solo founder 기준으로 충분 시장으로 보인다."
+                if payload.features.market_size_sufficiency_score >= 0.65
+                else "시장 규모는 참고 수준이며 충분성 판단은 보수적으로 봐야 한다."
             ),
             search_evidence_summary=(
                 payload.search_evidence_context.summary
@@ -258,6 +278,16 @@ class OpenAIResearchService:
                 payload.public_data_context.summary
                 if payload.public_data_context
                 else "활용 가능한 공공데이터 연계 관점은 아직 정리되지 않았다."
+            ),
+            online_gtm_summary=(
+                payload.online_gtm_context.summary
+                if payload.online_gtm_context
+                else "온라인 전용 GTM 채널 근거는 아직 정리되지 않았다."
+            ),
+            recommended_online_channels=(
+                payload.online_gtm_context.channel_signals
+                if payload.online_gtm_context and payload.online_gtm_context.channel_signals
+                else ["네이버 검색", "블로그 SEO", "업종 커뮤니티"]
             ),
             risk_flags=payload.risk_flags,
             recommended_priority=1,

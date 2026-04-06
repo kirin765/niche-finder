@@ -4,6 +4,8 @@ Korean-market **micro niche SaaS discovery system** for a **solo founder**.
 
 The project does not try to find every trending keyword. It tries to find **small, repeated, painful, software-solvable workflows** that a 1-person builder can ship as a narrow SaaS wedge in weeks, not months.
 
+The discovery scope is intentionally limited to **vertical markets** tied to specific industries and operator segments, not horizontal software categories.
+
 ## Detailed goal
 
 This project is optimized for questions like:
@@ -168,9 +170,10 @@ It is intentionally ignored for:
 
 Used as **optional market-size reference context**.
 
-Current implementation focuses on:
+Current implementation supports:
 
-- industry employee-count based context
+- legacy single employee-count mode
+- profile-based structure / revenue / growth / regional summaries when `KOSIS_PROFILE_OPTIONS_JSON` is configured
 
 It is intended to answer:
 
@@ -181,6 +184,258 @@ Important note:
 
 - KOSIS is a supporting context source, not the main ranking source.
 - Live KOSIS collection requires full table/item/industry configuration, not just an API key.
+
+### Project-ready KOSIS mapping design
+
+The repository now supports a **profile-based KOSIS mapping layer** while keeping the old single employee-count configuration as a fallback.
+
+That design should support four kinds of signals:
+
+1. **Structure**: business count + employee count
+2. **Money**: revenue + value added
+3. **Growth**: multi-year CAGR
+4. **Demand context**: population / household / consumption trend
+
+#### A. Structure profile
+
+Recommended table:
+
+- `DT_1F2A01` for nationwide business structure
+
+Recommended project interpretation:
+
+- `T1` = business count
+- `T2` = employee count
+
+Suggested profile shape:
+
+```json
+{
+  "name": "business-structure",
+  "tbl_id": "DT_1F2A01",
+  "classification": "KSIC10",
+  "industry_level": "mid",
+  "metrics": {
+    "business_count": "T1",
+    "employee_count": "T2"
+  },
+  "static_params": {
+    "PRD_SE": "A",
+    "OBJ_L1": "전산업"
+  }
+}
+```
+
+How to use it:
+
+- **business count high + employee count low** → fragmented small-operator market
+- **business count low + employee count low** → narrow niche candidate
+
+#### B. Revenue / value-added profiles
+
+Recommended tables:
+
+- `DT_1SB1501` for service industries
+- `DT_1MC1503` for manufacturing industries
+
+Suggested profile shape:
+
+```json
+{
+  "name": "service-economics",
+  "tbl_id": "DT_1SB1501",
+  "classification": "KSIC10",
+  "industry_level": "mid",
+  "metrics": {
+    "business_count": "T1",
+    "employee_count": "T2",
+    "revenue": "T3",
+    "value_added": "T4"
+  },
+  "static_params": {
+    "PRD_SE": "A"
+  }
+}
+```
+
+And:
+
+```json
+{
+  "name": "manufacturing-economics",
+  "tbl_id": "DT_1MC1503",
+  "classification": "KSIC10",
+  "industry_level": "mid",
+  "metrics": {
+    "employee_count": "T2",
+    "revenue": "T3"
+  },
+  "static_params": {
+    "PRD_SE": "A"
+  }
+}
+```
+
+Core KPI:
+
+- `revenue / employee_count`
+
+Interpretation:
+
+- **low employee count + high revenue per employee** → higher-value niche
+
+#### C. Time-series design
+
+The same structure and revenue tables should support a multi-year range:
+
+```json
+{
+  "time_range": ["2019", "2020", "2021", "2022", "2023"]
+}
+```
+
+Recommended calculation:
+
+- `CAGR = (latest / earliest)^(1 / years) - 1`
+
+Suggested filters:
+
+- business CAGR > `0.05`
+- employee CAGR > `0.03`
+
+Interpretation:
+
+- small-but-growing segments are stronger niche candidates than flat or shrinking segments
+
+#### D. Demand-context profiles
+
+Recommended demand-side references:
+
+- `DT_1L1A001` for household / consumption context
+- `DT_1B040A3` for population structure context
+
+Suggested profile shapes:
+
+```json
+{
+  "name": "single-household-consumption",
+  "tbl_id": "DT_1L1A001",
+  "dimension": "소비항목",
+  "static_params": {
+    "가구유형": "1인가구"
+  }
+}
+```
+
+```json
+{
+  "name": "population-structure",
+  "tbl_id": "DT_1B040A3",
+  "static_params": {}
+}
+```
+
+Project interpretation examples:
+
+- aging growth → healthcare / care / clinic-adjacent workflows
+- 1-person household growth → food / appliance / convenience categories
+- youth decline → weaker education-related demand
+
+#### E. Region design
+
+Structure table can also be reused for regional concentration analysis:
+
+```json
+{
+  "name": "regional-business-structure",
+  "tbl_id": "DT_1F2A01",
+  "static_params": {
+    "지역": "시군구"
+  }
+}
+```
+
+Core regional KPI:
+
+- `regional share / national average share`
+
+Interpretation:
+
+- if concentration > `1.5`, the niche may be regionally concentrated enough for focused B2B targeting
+
+#### F. Industry-code mapping design
+
+The project should not rely only on broad one-off industry labels.
+
+Recommended mapping shape:
+
+```json
+{
+  "mapping": {
+    "스마트스토어": "G47912",
+    "온라인교육": "P85659",
+    "헬스케어": "Q86",
+    "1인가구식품": "C107",
+    "물류자동화": "H52"
+  }
+}
+```
+
+Recommended LLM role:
+
+1. map candidate niche to KSIC-like industry codes
+2. choose which KOSIS profile group applies
+3. compute structure / revenue / growth / demand subscores
+4. return top-ranked segments for report use
+
+#### G. Recommended integrated config shape
+
+This is the project-level JSON design that best matches the future refactor:
+
+```json
+{
+  "data_sources": [
+    {
+      "name": "business-structure",
+      "tbl_id": "DT_1F2A01"
+    },
+    {
+      "name": "service-revenue",
+      "tbl_id": "DT_1SB1501"
+    },
+    {
+      "name": "manufacturing-revenue",
+      "tbl_id": "DT_1MC1503"
+    }
+  ],
+  "metrics": {
+    "employee": "T2",
+    "revenue": "T3"
+  },
+  "filters": {
+    "employee_max": 50,
+    "cagr_min": 0.05
+  }
+}
+```
+
+#### H. Practical note for this repository
+
+Today the code still accepts these legacy single-profile environment variables:
+
+- `KOSIS_TBL_ID`
+- `KOSIS_EMPLOYEE_ITM_ID`
+- `KOSIS_INDUSTRY_OPTIONS_JSON`
+- `KOSIS_STATIC_PARAMS_JSON`
+
+The preferred new configuration is `KOSIS_PROFILE_OPTIONS_JSON`, but the legacy fields still work.
+
+If you continue refining implementation later, the clean next steps are:
+
+1. introduce a `KOSIS_PROFILE_OPTIONS_JSON` style config
+2. support per-profile metric IDs instead of one `KOSIS_EMPLOYEE_ITM_ID`
+3. let pipeline/report logic aggregate structure, money, growth, and demand into one KOSIS context
+4. keep the current employee-count collector as a backward-compatible fallback
 
 ### 7. data.go.kr public data
 
@@ -246,6 +501,41 @@ Current evidence summary fields:
 - `search_evidence_summary`
 - `shopping_evidence_summary`
 - `public_data_summary`
+
+## Daily report automation
+
+The project can generate a **daily report digest** from the current seed set and deliver it to Telegram, Gmail, or both.
+
+How it works:
+
+1. load the newest seed categories up to `DAILY_REPORT_SEED_LIMIT`
+2. run the normal niche pipeline for each seed
+3. keep the top report for each seed
+4. format a compact daily digest
+5. send it to every configured delivery channel
+
+Main settings:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `GMAIL_SMTP_HOST`
+- `GMAIL_SMTP_PORT`
+- `GMAIL_USERNAME`
+- `GMAIL_APP_PASSWORD`
+- `GMAIL_FROM_EMAIL`
+- `GMAIL_TO_EMAILS`
+- `DAILY_REPORT_TIMEZONE`
+- `DAILY_REPORT_HOUR`
+- `DAILY_REPORT_MINUTE`
+- `DAILY_REPORT_SEED_LIMIT`
+- `DAILY_REPORT_CANDIDATE_COUNT`
+- `DAILY_REPORT_TOP_K_PER_SEED`
+
+Manual run:
+
+```bash
+python -m apps.worker.run_daily_report
+```
 
 ## Repo structure
 
@@ -366,6 +656,12 @@ python -m apps.worker.run_naver_shopping_insight_collector
 python -m apps.worker.run_kosis_collector --max-calls 3
 ```
 
+### Run one daily report cycle
+
+```bash
+python -m apps.worker.run_daily_report
+```
+
 ## Budgeting model
 
 The periodic collectors do not spend the full daily budget immediately.
@@ -410,10 +706,26 @@ Main groups of environment variables:
   - `KOSIS_TBL_ID`
   - `KOSIS_EMPLOYEE_ITM_ID`
   - `KOSIS_INDUSTRY_OPTIONS_JSON`
+  - `KOSIS_PROFILE_OPTIONS_JSON`
 - **Collectors**
   - `COLLECTOR_INTERVAL_MINUTES`
   - `COLLECTOR_SCHEDULE_CADENCE_MINUTES`
   - `COLLECTOR_DEFAULT_PRIORITY`
+- **Telegram / Gmail / daily reports**
+  - `TELEGRAM_BOT_TOKEN`
+  - `TELEGRAM_CHAT_ID`
+  - `GMAIL_SMTP_HOST`
+  - `GMAIL_SMTP_PORT`
+  - `GMAIL_USERNAME`
+  - `GMAIL_APP_PASSWORD`
+  - `GMAIL_FROM_EMAIL`
+  - `GMAIL_TO_EMAILS`
+  - `DAILY_REPORT_TIMEZONE`
+  - `DAILY_REPORT_HOUR`
+  - `DAILY_REPORT_MINUTE`
+  - `DAILY_REPORT_SEED_LIMIT`
+  - `DAILY_REPORT_CANDIDATE_COUNT`
+  - `DAILY_REPORT_TOP_K_PER_SEED`
 
 See `.env.example` for a fuller example.
 

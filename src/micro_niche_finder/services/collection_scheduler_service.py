@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from micro_niche_finder.config.settings import get_settings
 from micro_niche_finder.domain.schemas import (
     CollectionTarget,
-    KosisIndustrySelection,
+    KosisProfileRequest,
     NaverShoppingCategorySelection,
 )
 
@@ -53,13 +53,14 @@ class CollectionSchedulerService:
             for index in range(target_count)
         ]
 
-    def kosis_default_targets(self, selection: KosisIndustrySelection) -> list[CollectionTarget]:
+    def kosis_default_targets(self, requests: list[KosisProfileRequest]) -> list[CollectionTarget]:
         return [
             CollectionTarget(
-                key="kosis_employee_count",
+                key=f"kosis_{request.profile_name}_{request.metric_key}_{request.start_year}_{request.end_year}",
                 weeks=0,
-                metadata=selection.model_dump(mode="json"),
+                metadata=request.model_dump(mode="json"),
             )
+            for request in requests
         ]
 
     def naver_shopping_default_targets(self, selection: NaverShoppingCategorySelection) -> list[CollectionTarget]:

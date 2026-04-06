@@ -9,12 +9,13 @@ from micro_niche_finder.services.public_data_opportunity_service import PublicDa
 
 @dataclass(frozen=True, slots=True)
 class ScoreWeights:
-    repeated_pain: float = 0.28
-    problem_intensity: float = 0.22
-    payment_likelihood: float = 0.18
-    persistent_signal: float = 0.12
-    segment_focus: float = 0.08
-    implementation_feasibility: float = 0.12
+    repeated_pain: float = 0.20
+    problem_intensity: float = 0.16
+    payment_likelihood: float = 0.14
+    online_demand: float = 0.16
+    market_size_sufficiency: float = 0.12
+    online_gtm_efficiency: float = 0.14
+    implementation_feasibility: float = 0.08
 
 
 class ScoringService:
@@ -26,8 +27,9 @@ class ScoringService:
         repeated_pain = self._repeat_score(candidate.repeat_frequency)
         problem_intensity = self._problem_intensity(candidate, features)
         payment = self._fit_score(candidate.payment_likelihood)
-        persistent_signal = self._persistent_signal(features)
-        segment_focus = self._segment_focus(features)
+        online_demand = self._online_demand_score(candidate, features)
+        market_size_sufficiency = self._market_size_sufficiency_score(candidate, features)
+        online_gtm_efficiency = self._online_gtm_efficiency_score(candidate, features)
         implementation = self._implementation_fit(candidate, features)
         penalties = self._penalties(candidate, features)
 
@@ -35,8 +37,9 @@ class ScoringService:
             repeated_pain * self.weights.repeated_pain
             + problem_intensity * self.weights.problem_intensity
             + payment * self.weights.payment_likelihood
-            + persistent_signal * self.weights.persistent_signal
-            + segment_focus * self.weights.segment_focus
+            + online_demand * self.weights.online_demand
+            + market_size_sufficiency * self.weights.market_size_sufficiency
+            + online_gtm_efficiency * self.weights.online_gtm_efficiency
             + implementation * self.weights.implementation_feasibility
             - penalties
         )
@@ -45,14 +48,16 @@ class ScoringService:
             repeated_pain=round(repeated_pain, 4),
             problem_intensity=round(problem_intensity, 4),
             payment_likelihood=round(payment, 4),
-            persistent_signal=round(persistent_signal, 4),
-            segment_focus=round(segment_focus, 4),
+            online_demand=round(online_demand, 4),
+            market_size_sufficiency=round(market_size_sufficiency, 4),
+            online_gtm_efficiency=round(online_gtm_efficiency, 4),
             implementation_feasibility=round(implementation, 4),
             penalties=round(penalties, 4),
             final_score=final_score,
             reasoning_summary=(
                 f"repeat={repeated_pain:.2f}, problem={problem_intensity:.2f}, payment={payment:.2f}, "
-                f"signal={persistent_signal:.2f}, segment={segment_focus:.2f}, implementation={implementation:.2f}, "
+                f"online_demand={online_demand:.2f}, market={market_size_sufficiency:.2f}, "
+                f"online_gtm={online_gtm_efficiency:.2f}, implementation={implementation:.2f}, "
                 f"penalties={penalties:.2f}"
             ),
         )
@@ -103,6 +108,27 @@ class ScoringService:
             ),
         )
 
+    def _online_demand_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
+        score = features.online_demand_score * 0.75
+        score += self._fit_score(candidate.market_size_confidence) * 0.05
+        score += min(1.0, len(candidate.query_candidates) / 4) * 0.05
+        score += self._fit_score(candidate.online_gtm_fit) * 0.05
+        score += features.commercial_intent_ratio * 0.1
+        return max(0.0, min(1.0, score))
+
+    def _market_size_sufficiency_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
+        score = features.market_size_sufficiency_score * 0.8
+        score += self._fit_score(candidate.market_size_confidence) * 0.15
+        score += self._public_data_leverage(candidate) * 0.05
+        return max(0.0, min(1.0, score))
+
+    def _online_gtm_efficiency_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
+        channels = min(1.0, len(candidate.online_acquisition_channels) / 3)
+        score = features.online_gtm_efficiency_score * 0.7
+        score += self._fit_score(candidate.online_gtm_fit) * 0.2
+        score += channels * 0.1
+        return max(0.0, min(1.0, score))
+
     def _implementation_fit(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
         fit = self._fit_score(candidate.software_fit)
         fit += features.problem_specificity * 0.15
@@ -134,6 +160,10 @@ class ScoringService:
             penalties += 0.08
         if "regulation_risk" in candidate.risk_flags and self._public_data_regulatory_signal(candidate) > 0:
             penalties += 0.04
+        if features.online_demand_score < 0.3:
+            penalties += 0.1
+        if features.online_gtm_efficiency_score < 0.25:
+            penalties += 0.08
         penalties += self._broad_scope_signal(candidate) * 0.06
         return penalties
 

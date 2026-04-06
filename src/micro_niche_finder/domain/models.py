@@ -101,6 +101,9 @@ class Feature(Base):
     problem_specificity: Mapped[float] = mapped_column(Float, nullable=False)
     commercial_intent_ratio: Mapped[float] = mapped_column(Float, nullable=False)
     brand_dependency_score: Mapped[float] = mapped_column(Float, nullable=False)
+    online_demand_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    market_size_sufficiency_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    online_gtm_efficiency_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     query_group: Mapped[QueryGroup] = relationship(back_populates="features")

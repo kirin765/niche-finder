@@ -13,5 +13,7 @@ def test_llm_seed_generation_mock_returns_seed_list(monkeypatch) -> None:
     assert all(item.name for item in discovery.seeds)
     assert all(item.description for item in discovery.seeds)
     assert all(item.rationale for item in discovery.seeds)
+    forbidden = ("crm", "erp", "groupware", "hr", "accounting", "project management", "marketing")
+    assert all(not any(token in item.name.lower() for token in forbidden) for item in discovery.seeds)
 
     get_settings.cache_clear()

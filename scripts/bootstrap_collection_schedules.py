@@ -69,17 +69,19 @@ def main() -> None:
                     query_group=query_group.queries_json,
                     options=kosis_options,
                 )
-                repo.upsert_schedule(
-                    query_group_id=query_group.id,
-                    source=KosisEmployeeService.SOURCE,
-                    priority=max(1, container.collection_scheduler_service.settings.collector_default_priority - 10),
-                    cadence_minutes=container.collection_scheduler_service.settings.kosis_employee_cadence_minutes,
-                    collection_targets_json=[
-                        target.model_dump(mode="json")
-                        for target in container.collection_scheduler_service.kosis_default_targets(selection)
-                    ],
-                    next_collect_at=container.collection_scheduler_service.default_next_collect_at(),
-                )
+                requests = container.kosis_employee_service.build_requests(selection)
+                if requests:
+                    repo.upsert_schedule(
+                        query_group_id=query_group.id,
+                        source=KosisEmployeeService.SOURCE,
+                        priority=max(1, container.collection_scheduler_service.settings.collector_default_priority - 10),
+                        cadence_minutes=container.collection_scheduler_service.settings.kosis_employee_cadence_minutes,
+                        collection_targets_json=[
+                            target.model_dump(mode="json")
+                            for target in container.collection_scheduler_service.kosis_default_targets(requests)
+                        ],
+                        next_collect_at=container.collection_scheduler_service.default_next_collect_at(),
+                    )
             if shopping_options and query_group.problem_candidate is not None:
                 is_relevant = container.naver_shopping_insight_service.is_relevant_niche(
                     canonical_name=query_group.canonical_name,
@@ -132,6 +134,9 @@ def main() -> None:
                     query_group=query_group.queries_json,
                     options=kosis_options,
                 )
+                requests = container.kosis_employee_service.build_requests(selection)
+                if not requests:
+                    continue
                 repo.upsert_schedule(
                     query_group_id=query_group.id,
                     source=KosisEmployeeService.SOURCE,
@@ -139,7 +144,7 @@ def main() -> None:
                     cadence_minutes=container.collection_scheduler_service.settings.kosis_employee_cadence_minutes,
                     collection_targets_json=[
                         target.model_dump(mode="json")
-                        for target in container.collection_scheduler_service.kosis_default_targets(selection)
+                        for target in container.collection_scheduler_service.kosis_default_targets(requests)
                     ],
                     next_collect_at=container.collection_scheduler_service.default_next_collect_at(),
                 )

@@ -19,6 +19,9 @@ def make_features(**overrides) -> TrendFeatureSet:
         "problem_specificity": 0.8,
         "commercial_intent_ratio": 0.68,
         "brand_dependency_score": 0.15,
+        "online_demand_score": 0.72,
+        "market_size_sufficiency_score": 0.69,
+        "online_gtm_efficiency_score": 0.74,
     }
     base.update(overrides)
     return TrendFeatureSet(**base)
@@ -34,8 +37,12 @@ def make_candidate(**overrides) -> ProblemCandidateGenerated:
         "current_workaround": ["엑셀", "수동 검색"],
         "software_fit": "high",
         "payment_likelihood": "medium",
+        "online_gtm_fit": "high",
+        "market_size_confidence": "high",
         "risk_flags": [],
         "query_candidates": ["경쟁사 가격 확인", "가격 모니터링"],
+        "online_demand_hypothesis": "셀러가 온라인에서 가격 모니터링 도구를 자주 찾는다.",
+        "online_acquisition_channels": ["네이버 검색", "셀러 커뮤니티", "블로그 SEO"],
     }
     base.update(overrides)
     return ProblemCandidateGenerated(**base)
@@ -63,12 +70,41 @@ def test_one_off_low_fit_candidate_stays_low() -> None:
         repeat_frequency="one_off",
         software_fit="low",
         payment_likelihood="low",
+        online_gtm_fit="low",
+        market_size_confidence="low",
         pain="일회성 정보 탐색 수요다",
+        online_acquisition_channels=["지인 소개"],
     )
-    features = make_features(recent_growth_12w=-0.2, volatility=0.6, commercial_intent_ratio=0.2)
+    features = make_features(
+        recent_growth_12w=-0.2,
+        volatility=0.6,
+        commercial_intent_ratio=0.2,
+        online_demand_score=0.2,
+        market_size_sufficiency_score=0.3,
+        online_gtm_efficiency_score=0.2,
+    )
     score = service.score(candidate, features)
     assert score.repeated_pain < 0.2
     assert score.final_score < 45
+
+
+def test_low_online_demand_and_gtm_are_penalized() -> None:
+    service = ScoringService()
+    candidate = make_candidate(
+        online_gtm_fit="low",
+        market_size_confidence="medium",
+        online_acquisition_channels=["지인 소개"],
+    )
+    features = make_features(
+        online_demand_score=0.22,
+        online_gtm_efficiency_score=0.18,
+        market_size_sufficiency_score=0.45,
+    )
+    score = service.score(candidate, features)
+
+    assert score.online_demand < 0.4
+    assert score.online_gtm_efficiency < 0.3
+    assert score.penalties >= 0.18
 
 
 def test_manual_narrow_operator_workflow_gets_solo_builder_boost() -> None:

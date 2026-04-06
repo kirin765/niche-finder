@@ -7,7 +7,9 @@ from micro_niche_finder.services.collection_scheduler_service import CollectionS
 from micro_niche_finder.services.collector_service import CollectorService
 from micro_niche_finder.services.clustering_service import QueryClusteringService
 from micro_niche_finder.services.datalab_service import NaverDataLabService
+from micro_niche_finder.services.daily_report_service import DailyReportService
 from micro_niche_finder.services.feature_service import FeatureExtractionService
+from micro_niche_finder.services.gmail_service import GmailService
 from micro_niche_finder.services.google_collector_service import GoogleCollectorService
 from micro_niche_finder.services.google_search_service import GoogleSearchService
 from micro_niche_finder.services.kosis_collector_service import KosisCollectorService
@@ -22,6 +24,7 @@ from micro_niche_finder.services.naver_shopping_insight_service import NaverShop
 from micro_niche_finder.services.public_data_opportunity_service import PublicDataOpportunityService
 from micro_niche_finder.services.report_service import ReportService
 from micro_niche_finder.services.scoring_service import ScoringService
+from micro_niche_finder.services.telegram_service import TelegramService
 
 
 @dataclass(slots=True)
@@ -45,6 +48,9 @@ class ApplicationContainer:
     scoring_service: ScoringService
     report_service: ReportService
     pipeline_service: PipelineService
+    telegram_service: TelegramService
+    gmail_service: GmailService
+    daily_report_service: DailyReportService
 
 
 @lru_cache(maxsize=1)
@@ -60,6 +66,8 @@ def get_container() -> ApplicationContainer:
     naver_shopping_insight_service = NaverShoppingInsightService()
     public_data_opportunity_service = PublicDataOpportunityService()
     kosis_employee_service = KosisEmployeeService()
+    telegram_service = TelegramService()
+    gmail_service = GmailService()
     collector_service = CollectorService(
         datalab_service=datalab_service,
         feature_service=feature_service,
@@ -88,6 +96,7 @@ def get_container() -> ApplicationContainer:
         llm_service=llm_service,
         datalab_service=datalab_service,
         kosis_employee_service=kosis_employee_service,
+        google_search_service=google_search_service,
         naver_search_service=naver_search_service,
         naver_shopping_insight_service=naver_shopping_insight_service,
         public_data_opportunity_service=public_data_opportunity_service,
@@ -96,6 +105,11 @@ def get_container() -> ApplicationContainer:
         collection_scheduler_service=collection_scheduler_service,
         scoring_service=scoring_service,
         report_service=report_service,
+    )
+    daily_report_service = DailyReportService(
+        pipeline_service=pipeline_service,
+        telegram_service=telegram_service,
+        gmail_service=gmail_service,
     )
     return ApplicationContainer(
         llm_service=llm_service,
@@ -117,4 +131,7 @@ def get_container() -> ApplicationContainer:
         scoring_service=scoring_service,
         report_service=report_service,
         pipeline_service=pipeline_service,
+        telegram_service=telegram_service,
+        gmail_service=gmail_service,
+        daily_report_service=daily_report_service,
     )
