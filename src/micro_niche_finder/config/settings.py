@@ -56,6 +56,11 @@ class Settings(BaseSettings):
         default="https://openapi.naver.com/v1/search/webkr.json",
         alias="NAVER_SEARCH_BASE_URL",
     )
+    naver_ads_customer_id: str | None = Field(default=None, alias="NAVER_ADS_CUSTOMER_ID")
+    naver_ads_api_key: str | None = Field(default=None, alias="NAVER_ADS_API_KEY")
+    naver_ads_secret_key: str | None = Field(default=None, alias="NAVER_ADS_SECRET_KEY")
+    naver_ads_base_url: str = Field(default="https://api.naver.com/keywordstool", alias="NAVER_ADS_BASE_URL")
+    naver_ads_daily_limit: int = Field(default=300, alias="NAVER_ADS_DAILY_LIMIT")
     naver_search_display: int = Field(default=5, alias="NAVER_SEARCH_DISPLAY")
     naver_search_daily_limit: int = Field(default=300, alias="NAVER_SEARCH_DAILY_LIMIT")
     search_weight_google_demand: float = Field(default=0.55, alias="SEARCH_WEIGHT_GOOGLE_DEMAND")

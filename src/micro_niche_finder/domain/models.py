@@ -98,6 +98,8 @@ class Feature(Base):
     commercial_intent_ratio: Mapped[float] = mapped_column(Float, nullable=False)
     brand_dependency_score: Mapped[float] = mapped_column(Float, nullable=False)
     online_demand_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    absolute_demand_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    payability_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     market_size_sufficiency_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     online_gtm_efficiency_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     market_size_ceiling_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.7)

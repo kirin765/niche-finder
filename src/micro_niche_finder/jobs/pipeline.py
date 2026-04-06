@@ -6,12 +6,14 @@ from sqlalchemy.orm import Session
 
 from micro_niche_finder.domain.enums import CandidateStatus
 from micro_niche_finder.domain.schemas import (
+    AbsoluteDemandContext,
     FinalAnalysisInput,
     GoogleSearchRequest,
     MarketSizeContext,
     NaverSearchRequest,
     OnlineGTMContext,
     PipelineRunResponse,
+    PricingEvidenceContext,
     PublicDataContext,
     ShoppingEvidenceContext,
 )
@@ -27,8 +29,10 @@ from micro_niche_finder.services.feature_service import FeatureExtractionService
 from micro_niche_finder.services.google_search_service import GoogleSearchService
 from micro_niche_finder.services.kosis_employee_service import KosisEmployeeService
 from micro_niche_finder.services.llm_service import OpenAIResearchService
+from micro_niche_finder.services.naver_ads_keyword_service import NaverAdsKeywordService
 from micro_niche_finder.services.naver_search_service import NaverSearchService
 from micro_niche_finder.services.naver_shopping_insight_service import NaverShoppingInsightService
+from micro_niche_finder.services.pricing_evidence_service import PricingEvidenceService
 from micro_niche_finder.services.public_data_opportunity_service import PublicDataOpportunityService
 from micro_niche_finder.services.report_service import ReportService
 from micro_niche_finder.services.scoring_service import ScoringService
@@ -43,7 +47,9 @@ class PipelineService:
         kosis_employee_service: KosisEmployeeService,
         google_search_service: GoogleSearchService,
         naver_search_service: NaverSearchService,
+        naver_ads_keyword_service: NaverAdsKeywordService,
         naver_shopping_insight_service: NaverShoppingInsightService,
+        pricing_evidence_service: PricingEvidenceService,
         public_data_opportunity_service: PublicDataOpportunityService,
         clustering_service: QueryClusteringService,
         feature_service: FeatureExtractionService,
@@ -56,7 +62,9 @@ class PipelineService:
         self.kosis_employee_service = kosis_employee_service
         self.google_search_service = google_search_service
         self.naver_search_service = naver_search_service
+        self.naver_ads_keyword_service = naver_ads_keyword_service
         self.naver_shopping_insight_service = naver_shopping_insight_service
+        self.pricing_evidence_service = pricing_evidence_service
         self.public_data_opportunity_service = public_data_opportunity_service
         self.clustering_service = clustering_service
         self.feature_service = feature_service
@@ -151,9 +159,11 @@ class PipelineService:
             )
             market_size_context: MarketSizeContext | None = None
             search_evidence_context = None
+            absolute_demand_context: AbsoluteDemandContext | None = None
             shopping_evidence_context: ShoppingEvidenceContext | None = None
             online_gtm_context: OnlineGTMContext | None = None
             google_online_gtm_context: OnlineGTMContext | None = None
+            pricing_evidence_context: PricingEvidenceContext | None = None
             public_data_context: PublicDataContext | None = self.public_data_opportunity_service.analyze(
                 canonical_name=group.canonical_name,
                 persona=candidate.persona,
@@ -245,6 +255,27 @@ class PipelineService:
                 online_gtm_context = None
 
             try:
+                if group.queries:
+                    volume_request = self.naver_ads_keyword_service.build_request(group.queries)
+                    volume_metrics = self.naver_ads_keyword_service.fetch(volume_request)
+                    absolute_demand_context = self.naver_ads_keyword_service.build_context(
+                        keywords=volume_request.keywords,
+                        metrics=volume_metrics,
+                    )
+                    now = datetime.now(timezone.utc)
+                    trend_repo.create_snapshot(
+                        query_group_id=query_entity.id,
+                        source=NaverAdsKeywordService.SOURCE,
+                        window_start=now,
+                        window_end=now,
+                        target_key="naver_ads_absolute_volume_initial",
+                        request_payload_json=volume_request.model_dump(mode="json"),
+                        raw_response_json=absolute_demand_context.model_dump(mode="json"),
+                    )
+            except Exception:
+                absolute_demand_context = None
+
+            try:
                 if group.queries and self.google_search_service.is_configured():
                     query = group.queries[0]
                     google_request = GoogleSearchRequest(q=query, num=5)
@@ -266,6 +297,25 @@ class PipelineService:
                     )
             except Exception:
                 google_online_gtm_context = None
+
+            try:
+                if group.queries:
+                    pricing_evidence_context = self.pricing_evidence_service.collect(
+                        canonical_name=group.canonical_name,
+                        queries=group.queries,
+                    )
+                    now = datetime.now(timezone.utc)
+                    trend_repo.create_snapshot(
+                        query_group_id=query_entity.id,
+                        source=PricingEvidenceService.SOURCE,
+                        window_start=now,
+                        window_end=now,
+                        target_key="pricing_evidence_initial",
+                        request_payload_json={"canonical_name": group.canonical_name, "queries": group.queries},
+                        raw_response_json=pricing_evidence_context.model_dump(mode="json"),
+                    )
+            except Exception:
+                pricing_evidence_context = None
 
             try:
                 is_commerce_relevant = bool(shopping_options) and self.naver_shopping_insight_service.is_relevant_niche(
@@ -336,6 +386,18 @@ class PipelineService:
                 query_count=len(group.queries),
                 queries=group.queries,
                 feature_service=self.feature_service,
+            )
+            features = features.model_copy(
+                update={
+                    "absolute_demand_score": round(estimate_absolute_demand_score(absolute_demand_context), 4),
+                    "payability_score": round(
+                        estimate_payability_score(
+                            market_size_context=market_size_context,
+                            pricing_evidence_context=pricing_evidence_context,
+                        ),
+                        4,
+                    ),
+                }
             )
             combined_gtm_context = combine_online_gtm_contexts(
                 naver_context=online_gtm_context,
@@ -487,9 +549,11 @@ class PipelineService:
                         risk_flags=candidate.risk_flags,
                         market_size_context=market_size_context,
                         search_evidence_context=search_evidence_context,
+                        absolute_demand_context=absolute_demand_context,
                         shopping_evidence_context=shopping_evidence_context,
                         public_data_context=public_data_context,
                         online_gtm_context=online_gtm_context,
+                        pricing_evidence_context=pricing_evidence_context,
                     ),
                 )
             )
@@ -646,3 +710,60 @@ def estimate_market_size_ceiling_score(
     if len(available) == 1:
         return available[0]
     return round((business_score * 0.65) + (serp_score * 0.35), 4)
+
+
+def estimate_absolute_demand_score(context: AbsoluteDemandContext | None) -> float:
+    if context is None or context.max_monthly_searches is None:
+        return 0.45
+    volume = context.max_monthly_searches
+    if volume <= 50:
+        return 0.18
+    if volume <= 200:
+        return 0.32
+    if volume <= 1_000:
+        return 0.55
+    if volume <= 5_000:
+        return 0.75
+    if volume <= 15_000:
+        return 0.88
+    return 0.95
+
+
+def estimate_payability_score(
+    *,
+    market_size_context: MarketSizeContext | None,
+    pricing_evidence_context: PricingEvidenceContext | None,
+) -> float:
+    evidence: list[float] = []
+
+    if market_size_context is not None:
+        revenue_per_employee = market_size_context.revenue_per_employee
+        if revenue_per_employee is not None:
+            if revenue_per_employee >= 1_000:
+                evidence.append(0.85)
+            elif revenue_per_employee >= 500:
+                evidence.append(0.72)
+            elif revenue_per_employee >= 200:
+                evidence.append(0.58)
+            else:
+                evidence.append(0.42)
+        elif market_size_context.revenue is not None:
+            evidence.append(0.55)
+
+    if pricing_evidence_context is not None:
+        median_price = pricing_evidence_context.median_monthly_price_krw
+        if median_price is not None:
+            if median_price >= 150_000:
+                evidence.append(0.88)
+            elif median_price >= 70_000:
+                evidence.append(0.74)
+            elif median_price >= 30_000:
+                evidence.append(0.6)
+            else:
+                evidence.append(0.45)
+        elif pricing_evidence_context.pricing_page_count > 0:
+            evidence.append(0.52)
+
+    if not evidence:
+        return 0.5
+    return round(sum(evidence) / len(evidence), 4)

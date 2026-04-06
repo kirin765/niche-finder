@@ -15,12 +15,14 @@ from micro_niche_finder.services.google_search_service import GoogleSearchServic
 from micro_niche_finder.services.kosis_collector_service import KosisCollectorService
 from micro_niche_finder.services.kosis_employee_service import KosisEmployeeService
 from micro_niche_finder.services.llm_service import OpenAIResearchService
+from micro_niche_finder.services.naver_ads_keyword_service import NaverAdsKeywordService
 from micro_niche_finder.services.naver_search_collector_service import NaverSearchCollectorService
 from micro_niche_finder.services.naver_search_service import NaverSearchService
 from micro_niche_finder.services.naver_shopping_insight_collector_service import (
     NaverShoppingInsightCollectorService,
 )
 from micro_niche_finder.services.naver_shopping_insight_service import NaverShoppingInsightService
+from micro_niche_finder.services.pricing_evidence_service import PricingEvidenceService
 from micro_niche_finder.services.public_data_opportunity_service import PublicDataOpportunityService
 from micro_niche_finder.services.report_service import ReportService
 from micro_niche_finder.services.scoring_service import ScoringService
@@ -39,9 +41,11 @@ class ApplicationContainer:
     google_search_service: GoogleSearchService
     google_collector_service: GoogleCollectorService
     naver_search_service: NaverSearchService
+    naver_ads_keyword_service: NaverAdsKeywordService
     naver_search_collector_service: NaverSearchCollectorService
     naver_shopping_insight_service: NaverShoppingInsightService
     naver_shopping_insight_collector_service: NaverShoppingInsightCollectorService
+    pricing_evidence_service: PricingEvidenceService
     public_data_opportunity_service: PublicDataOpportunityService
     kosis_employee_service: KosisEmployeeService
     kosis_collector_service: KosisCollectorService
@@ -63,7 +67,9 @@ def get_container() -> ApplicationContainer:
     collection_scheduler_service = CollectionSchedulerService()
     google_search_service = GoogleSearchService()
     naver_search_service = NaverSearchService()
+    naver_ads_keyword_service = NaverAdsKeywordService()
     naver_shopping_insight_service = NaverShoppingInsightService()
+    pricing_evidence_service = PricingEvidenceService(google_search_service=google_search_service)
     public_data_opportunity_service = PublicDataOpportunityService()
     kosis_employee_service = KosisEmployeeService()
     telegram_service = TelegramService()
@@ -98,7 +104,9 @@ def get_container() -> ApplicationContainer:
         kosis_employee_service=kosis_employee_service,
         google_search_service=google_search_service,
         naver_search_service=naver_search_service,
+        naver_ads_keyword_service=naver_ads_keyword_service,
         naver_shopping_insight_service=naver_shopping_insight_service,
+        pricing_evidence_service=pricing_evidence_service,
         public_data_opportunity_service=public_data_opportunity_service,
         clustering_service=clustering_service,
         feature_service=feature_service,
@@ -122,9 +130,11 @@ def get_container() -> ApplicationContainer:
         google_search_service=google_search_service,
         google_collector_service=google_collector_service,
         naver_search_service=naver_search_service,
+        naver_ads_keyword_service=naver_ads_keyword_service,
         naver_search_collector_service=naver_search_collector_service,
         naver_shopping_insight_service=naver_shopping_insight_service,
         naver_shopping_insight_collector_service=naver_shopping_insight_collector_service,
+        pricing_evidence_service=pricing_evidence_service,
         public_data_opportunity_service=public_data_opportunity_service,
         kosis_employee_service=kosis_employee_service,
         kosis_collector_service=kosis_collector_service,

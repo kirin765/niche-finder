@@ -135,6 +135,8 @@ class TrendFeatureSet(BaseModel):
     commercial_intent_ratio: float
     brand_dependency_score: float
     online_demand_score: float
+    absolute_demand_score: float
+    payability_score: float
     market_size_sufficiency_score: float
     online_gtm_efficiency_score: float
     market_size_ceiling_score: float
@@ -277,6 +279,28 @@ class SearchEvidenceContext(BaseModel):
     summary: str
 
 
+class KeywordVolumeRequest(BaseModel):
+    keywords: list[str]
+
+
+class KeywordVolumeMetric(BaseModel):
+    keyword: str
+    monthly_pc_searches: int | None = None
+    monthly_mobile_searches: int | None = None
+    monthly_total_searches: int | None = None
+    competition_index: str | None = None
+
+
+class AbsoluteDemandContext(BaseModel):
+    source: str
+    source_label: str
+    keywords: list[str]
+    max_monthly_searches: int | None = None
+    average_monthly_searches: int | None = None
+    keyword_metrics: list[KeywordVolumeMetric] = Field(default_factory=list)
+    summary: str
+
+
 class OnlineGTMContext(BaseModel):
     query: str
     channel_signals: list[str] = Field(default_factory=list)
@@ -287,6 +311,17 @@ class OnlineGTMContext(BaseModel):
     competitor_presence_score: float | None = None
     brand_concentration_score: float | None = None
     competitive_whitespace_score: float | None = None
+    summary: str
+
+
+class PricingEvidenceContext(BaseModel):
+    source: str
+    source_label: str
+    search_queries: list[str]
+    pricing_page_count: int
+    detected_price_points_krw: list[int] = Field(default_factory=list)
+    median_monthly_price_krw: int | None = None
+    max_monthly_price_krw: int | None = None
     summary: str
 
 
@@ -436,9 +471,11 @@ class FinalAnalysisInput(BaseModel):
     risk_flags: list[str]
     market_size_context: MarketSizeContext | None = None
     search_evidence_context: SearchEvidenceContext | None = None
+    absolute_demand_context: AbsoluteDemandContext | None = None
     shopping_evidence_context: ShoppingEvidenceContext | None = None
     public_data_context: PublicDataContext | None = None
     online_gtm_context: OnlineGTMContext | None = None
+    pricing_evidence_context: PricingEvidenceContext | None = None
 
 
 class FinalAnalysisOutput(BaseModel):

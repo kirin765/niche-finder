@@ -16,6 +16,8 @@ def make_features(**overrides) -> TrendFeatureSet:
         "commercial_intent_ratio": 0.68,
         "brand_dependency_score": 0.15,
         "online_demand_score": 0.72,
+        "absolute_demand_score": 0.65,
+        "payability_score": 0.62,
         "market_size_sufficiency_score": 0.69,
         "online_gtm_efficiency_score": 0.74,
         "market_size_ceiling_score": 0.82,
@@ -96,6 +98,7 @@ def test_low_online_demand_and_gtm_are_penalized() -> None:
     )
     features = make_features(
         online_demand_score=0.22,
+        absolute_demand_score=0.2,
         online_gtm_efficiency_score=0.18,
         market_size_sufficiency_score=0.45,
     )
@@ -139,6 +142,15 @@ def test_low_keyword_difficulty_improves_search_led_candidate() -> None:
     assert easy.keyword_difficulty > hard.keyword_difficulty
     assert hard.penalties > easy.penalties
     assert easy.final_score > hard.final_score
+
+
+def test_payability_evidence_lifts_payment_score() -> None:
+    service = ScoringService()
+    weak = service.score(make_candidate(payment_likelihood="medium"), make_features(payability_score=0.35))
+    strong = service.score(make_candidate(payment_likelihood="medium"), make_features(payability_score=0.82))
+
+    assert strong.payment_likelihood > weak.payment_likelihood
+    assert strong.final_score > weak.final_score
 
 
 def test_manual_narrow_operator_workflow_gets_solo_builder_boost() -> None:

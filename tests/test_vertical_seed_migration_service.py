@@ -83,6 +83,8 @@ def test_vertical_seed_migration_removes_horizontal_seed_graph_and_inserts_curat
                 commercial_intent_ratio=0.7,
                 brand_dependency_score=0.1,
                 online_demand_score=0.5,
+                absolute_demand_score=0.5,
+                payability_score=0.5,
                 market_size_sufficiency_score=0.5,
                 online_gtm_efficiency_score=0.5,
                 market_size_ceiling_score=0.8,

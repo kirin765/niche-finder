@@ -34,6 +34,8 @@ class FeatureExtractionService:
                     max(0.1, min(0.7, (problem_specificity * 0.5) + (commercial_intent_ratio * 0.3) + (query_diversity * 0.2))),
                     4,
                 ),
+                absolute_demand_score=0.4,
+                payability_score=0.5,
                 market_size_sufficiency_score=0.5,
                 online_gtm_efficiency_score=round(
                     max(
@@ -99,6 +101,8 @@ class FeatureExtractionService:
             commercial_intent_ratio=commercial_intent_ratio,
             brand_dependency_score=brand_dependency_score,
             online_demand_score=round(online_demand, 4),
+            absolute_demand_score=round(min(0.85, 0.3 + query_diversity * 0.3 + commercial_intent_ratio * 0.2), 4),
+            payability_score=round(min(0.8, 0.35 + commercial_intent_ratio * 0.25 + problem_specificity * 0.2), 4),
             market_size_sufficiency_score=round(market_size_sufficiency, 4),
             online_gtm_efficiency_score=round(online_gtm_efficiency, 4),
             market_size_ceiling_score=0.7,

@@ -29,7 +29,7 @@ class ScoringService:
     def score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> ScoreBreakdown:
         repeated_pain = self._repeat_score(candidate.repeat_frequency)
         problem_intensity = self._problem_intensity(candidate, features)
-        payment = self._fit_score(candidate.payment_likelihood)
+        payment = self._payment_score(candidate, features)
         online_demand = self._online_demand_score(candidate, features)
         market_size_sufficiency = self._market_size_sufficiency_score(candidate, features)
         online_gtm_efficiency = self._online_gtm_efficiency_score(candidate, features)
@@ -93,6 +93,11 @@ class ScoringService:
             FitLevel.LOW: 0.28,
         }[level]
 
+    def _payment_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
+        prior = self._fit_score(candidate.payment_likelihood)
+        evidence = max(0.0, min(1.0, features.payability_score))
+        return max(0.0, min(1.0, (prior * 0.55) + (evidence * 0.45)))
+
     def _problem_intensity(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
         pain_text = f"{candidate.job_to_be_done} {candidate.pain}".lower()
         intensity = 0.45
@@ -104,7 +109,8 @@ class ScoringService:
         return min(intensity, 1.0)
 
     def _online_demand_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
-        score = features.online_demand_score * 0.75
+        score = features.online_demand_score * 0.6
+        score += features.absolute_demand_score * 0.2
         score += self._fit_score(candidate.market_size_confidence) * 0.05
         score += min(1.0, len(candidate.query_candidates) / 4) * 0.05
         score += self._fit_score(candidate.online_gtm_fit) * 0.05

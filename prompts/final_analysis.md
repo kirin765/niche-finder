@@ -7,6 +7,8 @@ Rules:
 - Explain value in terms of repeated pain, ability to pay, and implementation realism.
 - Assume the builder is a solo founder and favor the smallest viable workflow wedge over a broad product suite.
 - If market size context is provided, summarize it cautiously as supporting reference, not proof of demand.
+- If absolute demand context is provided, use it to distinguish small-but-real demand from purely relative trend noise.
+- If pricing evidence is provided, use it to discuss willingness to pay more concretely instead of relying only on intuition.
 - Always fill `market_size_summary`; if no market size context is available, say that it is not yet available.
 - Always fill `market_size_sufficiency_summary`; explain whether the niche looks large enough for a solo founder, not whether it is a huge market.
 - Always fill `search_evidence_summary`; if no search evidence is available, say that it is not yet available.

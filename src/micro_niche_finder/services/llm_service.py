@@ -250,14 +250,26 @@ class OpenAIResearchService:
             ],
             go_to_market=["네이버 검색 랜딩 페이지", "업계 커뮤니티", "실무형 블로그 SEO"],
             online_demand_summary=(
-                payload.search_evidence_context.summary
-                if payload.search_evidence_context
-                else "온라인 검색 수요 근거는 아직 연결되지 않았다."
+                " ".join(
+                    part
+                    for part in (
+                        payload.search_evidence_context.summary if payload.search_evidence_context else None,
+                        payload.absolute_demand_context.summary if payload.absolute_demand_context else None,
+                    )
+                    if part
+                )
+                or "온라인 검색 수요 근거는 아직 연결되지 않았다."
             ),
             market_size_summary=(
-                payload.market_size_context.summary
-                if payload.market_size_context
-                else "시장 규모 참고 데이터는 아직 연결되지 않았다."
+                " ".join(
+                    part
+                    for part in (
+                        payload.market_size_context.summary if payload.market_size_context else None,
+                        payload.pricing_evidence_context.summary if payload.pricing_evidence_context else None,
+                    )
+                    if part
+                )
+                or "시장 규모 참고 데이터는 아직 연결되지 않았다."
             ),
             market_size_sufficiency_summary=(
                 "solo founder 기준으로 충분 시장으로 보인다."
