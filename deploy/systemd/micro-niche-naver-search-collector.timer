@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Micro Niche Finder Naver Search collector every 30 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=30min
+Unit=micro-niche-naver-search-collector.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -3,7 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from micro_niche_finder.config.settings import get_settings
-from micro_niche_finder.domain.schemas import CollectionTarget
+from micro_niche_finder.domain.schemas import (
+    CollectionTarget,
+    KosisIndustrySelection,
+    NaverShoppingCategorySelection,
+)
 
 
 class CollectionSchedulerService:
@@ -36,6 +40,35 @@ class CollectionSchedulerService:
                 metadata={"query_index": index},
             )
             for index in range(target_count)
+        ]
+
+    def naver_search_default_targets(self, query_count: int) -> list[CollectionTarget]:
+        target_count = min(3, max(1, query_count))
+        return [
+            CollectionTarget(
+                key=f"naver_search_query_{index}",
+                weeks=0,
+                metadata={"query_index": index},
+            )
+            for index in range(target_count)
+        ]
+
+    def kosis_default_targets(self, selection: KosisIndustrySelection) -> list[CollectionTarget]:
+        return [
+            CollectionTarget(
+                key="kosis_employee_count",
+                weeks=0,
+                metadata=selection.model_dump(mode="json"),
+            )
+        ]
+
+    def naver_shopping_default_targets(self, selection: NaverShoppingCategorySelection) -> list[CollectionTarget]:
+        return [
+            CollectionTarget(
+                key="naver_shopping_category",
+                weeks=0,
+                metadata=selection.model_dump(mode="json"),
+            )
         ]
 
     def default_next_collect_at(self, now: datetime | None = None) -> datetime:

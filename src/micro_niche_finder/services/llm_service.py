@@ -13,6 +13,10 @@ from micro_niche_finder.domain.schemas import (
     CandidateGenerationResult,
     FinalAnalysisInput,
     FinalAnalysisOutput,
+    KosisIndustryOption,
+    KosisIndustrySelection,
+    NaverShoppingCategoryOption,
+    NaverShoppingCategorySelection,
     ProblemCandidateGenerated,
     QueryExpansionResult,
     SeedCategoryDiscoveryPayload,
@@ -78,6 +82,58 @@ class OpenAIResearchService:
             schema=FinalAnalysisOutput,
             reasoning_effort=self.settings.openai_reasoning_effort,
             text_verbosity=self.settings.openai_text_verbosity,
+        )
+
+    def select_kosis_industry(
+        self,
+        *,
+        canonical_name: str,
+        persona: str,
+        problem_summary: str,
+        query_group: list[str],
+        options: list[KosisIndustryOption],
+    ) -> KosisIndustrySelection:
+        system_prompt = self._load_prompt("kosis_industry_mapping.md")
+        payload = {
+            "canonical_name": canonical_name,
+            "persona": persona,
+            "problem_summary": problem_summary,
+            "query_group": query_group,
+            "industry_options": [item.model_dump(mode="json") for item in options],
+        }
+        if not self.settings.openai_api_key:
+            return self._mock_kosis_industry(options)
+        return self._structured_response(
+            model=self.settings.openai_candidate_model,
+            instructions=system_prompt,
+            user_prompt=json.dumps(payload, ensure_ascii=False, indent=2),
+            schema=KosisIndustrySelection,
+        )
+
+    def select_naver_shopping_category(
+        self,
+        *,
+        canonical_name: str,
+        persona: str,
+        problem_summary: str,
+        query_group: list[str],
+        options: list[NaverShoppingCategoryOption],
+    ) -> NaverShoppingCategorySelection:
+        system_prompt = self._load_prompt("naver_shopping_category_mapping.md")
+        payload = {
+            "canonical_name": canonical_name,
+            "persona": persona,
+            "problem_summary": problem_summary,
+            "query_group": query_group,
+            "category_options": [item.model_dump(mode="json") for item in options],
+        }
+        if not self.settings.openai_api_key:
+            return self._mock_naver_shopping_category(options)
+        return self._structured_response(
+            model=self.settings.openai_candidate_model,
+            instructions=system_prompt,
+            user_prompt=json.dumps(payload, ensure_ascii=False, indent=2),
+            schema=NaverShoppingCategorySelection,
         )
 
     def expand_queries(self, candidate: ProblemCandidateGenerated) -> QueryExpansionResult:
@@ -183,8 +239,48 @@ class OpenAIResearchService:
                 "우선순위 알림",
             ],
             go_to_market=["네이버 검색 랜딩 페이지", "업계 커뮤니티", "실무형 블로그 SEO"],
+            market_size_summary=(
+                payload.market_size_context.summary
+                if payload.market_size_context
+                else "시장 규모 참고 데이터는 아직 연결되지 않았다."
+            ),
+            search_evidence_summary=(
+                payload.search_evidence_context.summary
+                if payload.search_evidence_context
+                else "검색 기반 참고 데이터는 아직 연결되지 않았다."
+            ),
+            shopping_evidence_summary=(
+                payload.shopping_evidence_context.summary
+                if payload.shopping_evidence_context
+                else "쇼핑 클릭 기반 참고 데이터는 아직 연결되지 않았다."
+            ),
+            public_data_summary=(
+                payload.public_data_context.summary
+                if payload.public_data_context
+                else "활용 가능한 공공데이터 연계 관점은 아직 정리되지 않았다."
+            ),
             risk_flags=payload.risk_flags,
             recommended_priority=1,
+        )
+
+    def _mock_kosis_industry(self, options: list[KosisIndustryOption]) -> KosisIndustrySelection:
+        if not options:
+            raise RuntimeError("No KOSIS industry options are configured")
+        chosen = options[0]
+        return KosisIndustrySelection(
+            code=chosen.code,
+            label=chosen.label,
+            rationale=f"{chosen.label}이(가) 문제 영역과 가장 가깝다.",
+        )
+
+    def _mock_naver_shopping_category(self, options: list[NaverShoppingCategoryOption]) -> NaverShoppingCategorySelection:
+        if not options:
+            raise RuntimeError("No Naver shopping category options are configured")
+        chosen = options[0]
+        return NaverShoppingCategorySelection(
+            code=chosen.code,
+            label=chosen.label,
+            rationale=f"{chosen.label} 카테고리가 상품 판매 맥락과 가장 가깝다.",
         )
 
     def _mock_seed_categories(self, seed_count: int) -> SeedCategoryDiscoveryResult:

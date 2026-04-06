@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Micro Niche Finder Naver Shopping Insight collector every 2 hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=2h
+Unit=micro-niche-naver-shopping-insight-collector.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

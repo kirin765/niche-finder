@@ -76,6 +76,19 @@ class CollectionRepository:
         )
         return list(self.session.scalars(stmt))
 
+    def list_query_groups_without_schedule_for_source(self, source: str) -> list[QueryGroup]:
+        stmt = (
+            select(QueryGroup)
+            .outerjoin(
+                CollectionSchedule,
+                (CollectionSchedule.query_group_id == QueryGroup.id) & (CollectionSchedule.source == source),
+            )
+            .options(joinedload(QueryGroup.problem_candidate))
+            .where(CollectionSchedule.id.is_(None))
+            .order_by(QueryGroup.created_at.asc())
+        )
+        return list(self.session.scalars(stmt).unique())
+
     def get_or_create_usage_counter(self, *, source: str, usage_date: date, daily_limit: int) -> ApiUsageCounter:
         stmt = select(ApiUsageCounter).where(ApiUsageCounter.source == source, ApiUsageCounter.usage_date == usage_date)
         counter = self.session.scalar(stmt)

@@ -27,6 +27,22 @@ class Settings(BaseSettings):
     )
     google_custom_search_daily_limit: int = Field(default=100, alias="GOOGLE_CUSTOM_SEARCH_DAILY_LIMIT")
 
+    kosis_api_key: str | None = Field(default=None, alias="KOSIS_API_KEY")
+    kosis_base_url: str = Field(
+        default="https://kosis.kr/openapi/Param/statisticsParameterData.do",
+        alias="KOSIS_BASE_URL",
+    )
+    kosis_org_id: str = Field(default="101", alias="KOSIS_ORG_ID")
+    kosis_tbl_id: str | None = Field(default=None, alias="KOSIS_TBL_ID")
+    kosis_employee_itm_id: str | None = Field(default=None, alias="KOSIS_EMPLOYEE_ITM_ID")
+    kosis_prd_se: str = Field(default="Y", alias="KOSIS_PRD_SE")
+    kosis_industry_dimension_key: str = Field(default="objL1", alias="KOSIS_INDUSTRY_DIMENSION_KEY")
+    kosis_reference_year_offset: int = Field(default=1, alias="KOSIS_REFERENCE_YEAR_OFFSET")
+    kosis_employee_daily_limit: int = Field(default=100, alias="KOSIS_EMPLOYEE_DAILY_LIMIT")
+    kosis_employee_cadence_minutes: int = Field(default=1440, alias="KOSIS_EMPLOYEE_CADENCE_MINUTES")
+    kosis_static_params_json: str | None = Field(default=None, alias="KOSIS_STATIC_PARAMS_JSON")
+    kosis_industry_options_json: str | None = Field(default=None, alias="KOSIS_INDUSTRY_OPTIONS_JSON")
+
     naver_datalab_client_id: str | None = Field(default=None, alias="NAVER_DATALAB_CLIENT_ID")
     naver_datalab_client_secret: str | None = Field(default=None, alias="NAVER_DATALAB_CLIENT_SECRET")
     naver_datalab_base_url: str = Field(
@@ -34,6 +50,21 @@ class Settings(BaseSettings):
         alias="NAVER_DATALAB_BASE_URL",
     )
     naver_datalab_daily_limit: int = Field(default=1000, alias="NAVER_DATALAB_DAILY_LIMIT")
+    naver_search_client_id: str | None = Field(default=None, alias="NAVER_SEARCH_CLIENT_ID")
+    naver_search_client_secret: str | None = Field(default=None, alias="NAVER_SEARCH_CLIENT_SECRET")
+    naver_search_base_url: str = Field(
+        default="https://openapi.naver.com/v1/search/webkr.json",
+        alias="NAVER_SEARCH_BASE_URL",
+    )
+    naver_search_display: int = Field(default=5, alias="NAVER_SEARCH_DISPLAY")
+    naver_search_daily_limit: int = Field(default=300, alias="NAVER_SEARCH_DAILY_LIMIT")
+    naver_shopping_insight_base_url: str = Field(
+        default="https://openapi.naver.com/v1/datalab/shopping/categories",
+        alias="NAVER_SHOPPING_INSIGHT_BASE_URL",
+    )
+    naver_shopping_insight_daily_limit: int = Field(default=300, alias="NAVER_SHOPPING_INSIGHT_DAILY_LIMIT")
+    naver_shopping_insight_cadence_minutes: int = Field(default=720, alias="NAVER_SHOPPING_INSIGHT_CADENCE_MINUTES")
+    naver_shopping_category_options_json: str | None = Field(default=None, alias="NAVER_SHOPPING_CATEGORY_OPTIONS_JSON")
     collector_interval_minutes: int = Field(default=15, alias="COLLECTOR_INTERVAL_MINUTES")
     collector_schedule_cadence_minutes: int = Field(default=180, alias="COLLECTOR_SCHEDULE_CADENCE_MINUTES")
     collector_default_priority: int = Field(default=100, alias="COLLECTOR_DEFAULT_PRIORITY")

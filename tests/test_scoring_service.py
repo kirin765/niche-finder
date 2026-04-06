@@ -69,3 +69,50 @@ def test_one_off_low_fit_candidate_stays_low() -> None:
     score = service.score(candidate, features)
     assert score.repeated_pain < 0.2
     assert score.final_score < 45
+
+
+def test_manual_narrow_operator_workflow_gets_solo_builder_boost() -> None:
+    service = ScoringService()
+    candidate = make_candidate(
+        persona="1인 피부관리실 원장",
+        job_to_be_done="예약 변경과 재예약 누락을 매일 확인한다",
+        pain="엑셀과 카톡으로 관리해 누락과 공실 손실이 반복된다",
+        current_workaround=["엑셀", "카카오톡", "수기 메모"],
+        query_candidates=["피부관리실 예약 관리", "노쇼 방지 프로그램"],
+    )
+    score = service.score(candidate, make_features())
+
+    assert score.implementation_feasibility > 0.9
+    assert score.final_score > 75
+
+
+def test_broad_enterprise_scope_is_penalized_for_solo_founder() -> None:
+    service = ScoringService()
+    candidate = make_candidate(
+        persona="중견기업 운영팀",
+        job_to_be_done="전사 ERP와 CRM을 통합한 올인원 운영 플랫폼을 도입한다",
+        pain="여러 부서가 사용하는 그룹웨어와 마케팅 플랫폼을 한 번에 통합하고 싶다",
+        current_workaround=["ERP", "CRM", "그룹웨어"],
+        query_candidates=["ERP 통합 플랫폼", "올인원 CRM", "전사 운영 플랫폼"],
+        risk_flags=["enterprise_complexity"],
+    )
+    score = service.score(candidate, make_features())
+
+    assert score.penalties >= 0.1
+    assert score.implementation_feasibility < 0.75
+    assert score.final_score < 70
+
+
+def test_public_data_leverage_boosts_fragmented_commerce_workflows() -> None:
+    service = ScoringService()
+    candidate = make_candidate(
+        persona="소형 스마트스토어 셀러",
+        job_to_be_done="통신판매 상품 정산과 가격 점검을 매일 확인한다",
+        pain="셀러 운영과 사업자 확인을 엑셀로 관리해 누락이 잦다",
+        current_workaround=["엑셀", "사업자번호 수기 확인"],
+        query_candidates=["스마트스토어 정산 관리", "통신판매 사업자 확인"],
+    )
+    score = service.score(candidate, make_features())
+
+    assert score.implementation_feasibility > 0.9
+    assert score.final_score > 75

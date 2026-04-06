@@ -101,10 +101,32 @@ Running one Google supplementary collection cycle:
 python -m apps.worker.run_google_collector --max-calls 3
 ```
 
+Running one Naver search supplementary collection cycle:
+
+```bash
+python -m apps.worker.run_naver_search_collector --max-calls 3
+```
+
+Running one Naver Shopping Insight supplementary collection cycle:
+
+```bash
+python -m apps.worker.run_naver_shopping_insight_collector
+```
+
+Running one KOSIS market-size collection cycle:
+
+```bash
+python -m apps.worker.run_kosis_collector --max-calls 3
+```
+
 Ubuntu deployment artifacts live under [deploy/ubuntu.md](/Users/kiwankim/niche-finder/deploy/ubuntu.md) and [deploy/systemd](/Users/kiwankim/niche-finder/deploy/systemd).
 
 ## Notes
 
 - OpenAI integration uses the Responses API and JSON schema structured outputs.
 - Naver DataLab data is treated as relative trend signal, not absolute demand.
+- Naver Search evidence is used as supplementary demand/context validation for narrow niche candidates.
+- Naver Shopping Insight is used selectively for commerce, seller, and product niches; it is intentionally ignored for most pure B2B operational workflows.
+- KOSIS employee-count data is optional reference context for report market sizing and does not change scoring.
+- Selected data.go.kr APIs are interpreted as validation aids for fragmentation, seller growth, partner onboarding, and narrow compliance workflows rather than universal demand signals.
 - The repository includes tests for the rule-based scoring engine.

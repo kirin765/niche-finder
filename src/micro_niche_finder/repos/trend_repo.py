@@ -14,6 +14,14 @@ class TrendRepository:
         self.session.flush()
         return entity
 
+    def latest_snapshot_for_group_source(self, query_group_id: int, source: str) -> TrendSnapshot | None:
+        stmt = (
+            select(TrendSnapshot)
+            .where(TrendSnapshot.query_group_id == query_group_id, TrendSnapshot.source == source)
+            .order_by(TrendSnapshot.collected_at.desc(), TrendSnapshot.id.desc())
+        )
+        return self.session.scalar(stmt)
+
     def upsert_feature(self, query_group_id: int, **kwargs) -> Feature:
         existing = self.session.scalar(select(Feature).where(Feature.query_group_id == query_group_id))
         if existing:

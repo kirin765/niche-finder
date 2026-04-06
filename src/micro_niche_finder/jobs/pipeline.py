@@ -5,7 +5,14 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from micro_niche_finder.domain.enums import CandidateStatus
-from micro_niche_finder.domain.schemas import FinalAnalysisInput, PipelineRunResponse
+from micro_niche_finder.domain.schemas import (
+    FinalAnalysisInput,
+    MarketSizeContext,
+    NaverSearchRequest,
+    PipelineRunResponse,
+    PublicDataContext,
+    ShoppingEvidenceContext,
+)
 from micro_niche_finder.jobs import build_reports, collect_trends, compute_features, generate_candidates, score_candidates
 from micro_niche_finder.repos.collection_repo import CollectionRepository
 from micro_niche_finder.repos.candidate_repo import CandidateRepository, QueryGroupRepository, SeedCategoryRepository
@@ -15,7 +22,11 @@ from micro_niche_finder.services.collection_scheduler_service import CollectionS
 from micro_niche_finder.services.clustering_service import QueryClusteringService
 from micro_niche_finder.services.datalab_service import NaverDataLabService
 from micro_niche_finder.services.feature_service import FeatureExtractionService
+from micro_niche_finder.services.kosis_employee_service import KosisEmployeeService
 from micro_niche_finder.services.llm_service import OpenAIResearchService
+from micro_niche_finder.services.naver_search_service import NaverSearchService
+from micro_niche_finder.services.naver_shopping_insight_service import NaverShoppingInsightService
+from micro_niche_finder.services.public_data_opportunity_service import PublicDataOpportunityService
 from micro_niche_finder.services.report_service import ReportService
 from micro_niche_finder.services.scoring_service import ScoringService
 
@@ -26,6 +37,10 @@ class PipelineService:
         *,
         llm_service: OpenAIResearchService,
         datalab_service: NaverDataLabService,
+        kosis_employee_service: KosisEmployeeService,
+        naver_search_service: NaverSearchService,
+        naver_shopping_insight_service: NaverShoppingInsightService,
+        public_data_opportunity_service: PublicDataOpportunityService,
         clustering_service: QueryClusteringService,
         feature_service: FeatureExtractionService,
         collection_scheduler_service: CollectionSchedulerService,
@@ -34,6 +49,10 @@ class PipelineService:
     ) -> None:
         self.llm_service = llm_service
         self.datalab_service = datalab_service
+        self.kosis_employee_service = kosis_employee_service
+        self.naver_search_service = naver_search_service
+        self.naver_shopping_insight_service = naver_shopping_insight_service
+        self.public_data_opportunity_service = public_data_opportunity_service
         self.clustering_service = clustering_service
         self.feature_service = feature_service
         self.collection_scheduler_service = collection_scheduler_service
@@ -62,6 +81,12 @@ class PipelineService:
         generated = generate_candidates.run(seed.name, candidate_count, self.llm_service)
         expansions = [self.llm_service.expand_queries(candidate) for candidate in generated.candidates]
         clustered = self.clustering_service.cluster_candidates(expansions)
+        kosis_options = self.kosis_employee_service.industry_options() if self.kosis_employee_service.is_configured() else []
+        shopping_options = (
+            self.naver_shopping_insight_service.category_options()
+            if self.naver_shopping_insight_service.is_configured()
+            else []
+        )
 
         scored_payloads: list[tuple[float, int, FinalAnalysisInput]] = []
         for index, candidate in enumerate(generated.candidates):
@@ -108,6 +133,146 @@ class PipelineService:
                 ],
                 next_collect_at=self.collection_scheduler_service.default_next_collect_at(),
             )
+            collection_repo.upsert_schedule(
+                query_group_id=query_entity.id,
+                source=NaverSearchService.SOURCE,
+                priority=max(1, self.collection_scheduler_service.settings.collector_default_priority - 15),
+                cadence_minutes=self.collection_scheduler_service.settings.collector_schedule_cadence_minutes,
+                collection_targets_json=[
+                    target.model_dump(mode="json")
+                    for target in self.collection_scheduler_service.naver_search_default_targets(len(group.queries))
+                ],
+                next_collect_at=self.collection_scheduler_service.default_next_collect_at(),
+            )
+            market_size_context: MarketSizeContext | None = None
+            search_evidence_context = None
+            shopping_evidence_context: ShoppingEvidenceContext | None = None
+            public_data_context: PublicDataContext | None = self.public_data_opportunity_service.analyze(
+                canonical_name=group.canonical_name,
+                persona=candidate.persona,
+                problem_summary=candidate.pain,
+                query_group=group.queries,
+                risk_flags=candidate.risk_flags,
+            )
+            if kosis_options:
+                selection = self.llm_service.select_kosis_industry(
+                    canonical_name=group.canonical_name,
+                    persona=candidate.persona,
+                    problem_summary=candidate.pain,
+                    query_group=group.queries,
+                    options=kosis_options,
+                )
+                collection_repo.upsert_schedule(
+                    query_group_id=query_entity.id,
+                    source=KosisEmployeeService.SOURCE,
+                    priority=max(1, self.collection_scheduler_service.settings.collector_default_priority - 10),
+                    cadence_minutes=self.collection_scheduler_service.settings.kosis_employee_cadence_minutes,
+                    collection_targets_json=[
+                        target.model_dump(mode="json")
+                        for target in self.collection_scheduler_service.kosis_default_targets(selection)
+                    ],
+                    next_collect_at=self.collection_scheduler_service.default_next_collect_at(),
+                )
+                try:
+                    kosis_request = self.kosis_employee_service.build_request(selection)
+                    kosis_response = self.kosis_employee_service.fetch(kosis_request)
+                    trend_repo.create_snapshot(
+                        query_group_id=query_entity.id,
+                        source=KosisEmployeeService.SOURCE,
+                        window_start=datetime(kosis_response.reference_year, 1, 1, tzinfo=timezone.utc),
+                        window_end=datetime(kosis_response.reference_year, 12, 31, tzinfo=timezone.utc),
+                        target_key="kosis_employee_count_initial",
+                        request_payload_json=kosis_request.model_dump(mode="json"),
+                        raw_response_json=kosis_response.model_dump(mode="json"),
+                    )
+                    market_size_context = self.kosis_employee_service.build_market_size_context(
+                        kosis_response,
+                        rationale=selection.rationale,
+                    )
+                except Exception as exc:
+                    market_size_context = MarketSizeContext(
+                        source=KosisEmployeeService.SOURCE,
+                        source_label=KosisEmployeeService.SOURCE_LABEL,
+                        industry_code=selection.code,
+                        industry_label=selection.label,
+                        reference_year=max(2000, datetime.now(timezone.utc).year - self.kosis_employee_service.settings.kosis_reference_year_offset),
+                        employee_count=None,
+                        summary=f"KOSIS 종사자 수 조회에 실패했다: {exc}",
+                        rationale=selection.rationale,
+                    )
+
+            try:
+                if group.queries:
+                    query = group.queries[0]
+                    request = NaverSearchRequest(
+                        query=query,
+                        display=self.naver_search_service.settings.naver_search_display,
+                    )
+                    response = self.naver_search_service.fetch(request)
+                    now = datetime.now(timezone.utc)
+                    trend_repo.create_snapshot(
+                        query_group_id=query_entity.id,
+                        source=NaverSearchService.SOURCE,
+                        window_start=now,
+                        window_end=now,
+                        target_key="naver_search_initial",
+                        request_payload_json=request.model_dump(mode="json", exclude_none=True),
+                        raw_response_json=response.model_dump(mode="json"),
+                    )
+                    search_evidence_context = self.naver_search_service.build_search_evidence(
+                        query=query,
+                        response=response,
+                    )
+            except Exception:
+                search_evidence_context = None
+
+            try:
+                is_commerce_relevant = bool(shopping_options) and self.naver_shopping_insight_service.is_relevant_niche(
+                    canonical_name=group.canonical_name,
+                    persona=candidate.persona,
+                    problem_summary=candidate.pain,
+                    query_group=group.queries,
+                )
+                if is_commerce_relevant:
+                    selection = self.llm_service.select_naver_shopping_category(
+                        canonical_name=group.canonical_name,
+                        persona=candidate.persona,
+                        problem_summary=candidate.pain,
+                        query_group=group.queries,
+                        options=shopping_options,
+                    )
+                    collection_repo.upsert_schedule(
+                        query_group_id=query_entity.id,
+                        source=NaverShoppingInsightService.SOURCE,
+                        priority=max(1, self.collection_scheduler_service.settings.collector_default_priority - 12),
+                        cadence_minutes=self.collection_scheduler_service.settings.naver_shopping_insight_cadence_minutes,
+                        collection_targets_json=[
+                            target.model_dump(mode="json")
+                            for target in self.collection_scheduler_service.naver_shopping_default_targets(selection)
+                        ],
+                        next_collect_at=self.collection_scheduler_service.default_next_collect_at(),
+                    )
+                    shopping_request = self.naver_shopping_insight_service.build_request(selection)
+                    shopping_response = self.naver_shopping_insight_service.fetch(shopping_request)
+                    trend_repo.create_snapshot(
+                        query_group_id=query_entity.id,
+                        source=NaverShoppingInsightService.SOURCE,
+                        window_start=datetime.combine(
+                            shopping_response.startDate, datetime.min.time(), tzinfo=timezone.utc
+                        ),
+                        window_end=datetime.combine(
+                            shopping_response.endDate, datetime.min.time(), tzinfo=timezone.utc
+                        ),
+                        target_key="naver_shopping_initial",
+                        request_payload_json=shopping_request.model_dump(mode="json", exclude_none=True),
+                        raw_response_json=shopping_response.model_dump(mode="json"),
+                    )
+                    shopping_evidence_context = self.naver_shopping_insight_service.build_shopping_evidence(
+                        selection=selection,
+                        response=shopping_response,
+                    )
+            except Exception:
+                shopping_evidence_context = None
 
             initial_request = self.datalab_service.build_request(group_name=group.canonical_name, queries=group.queries)
             trend_response = collect_trends.run(
@@ -163,6 +328,10 @@ class PipelineService:
                         features=features,
                         score_breakdown=breakdown,
                         risk_flags=candidate.risk_flags,
+                        market_size_context=market_size_context,
+                        search_evidence_context=search_evidence_context,
+                        shopping_evidence_context=shopping_evidence_context,
+                        public_data_context=public_data_context,
                     ),
                 )
             )

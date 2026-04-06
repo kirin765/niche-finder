@@ -157,6 +157,155 @@ class CollectorRunSummary(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class KosisIndustryOption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    label: str
+    description: str
+
+
+class KosisIndustrySelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    label: str
+    rationale: str
+
+
+class KosisEmployeeRequest(BaseModel):
+    industry_code: str
+    industry_label: str
+    reference_year: int
+    params: dict[str, str]
+
+
+class KosisEmployeeResponse(BaseModel):
+    industry_code: str
+    industry_label: str
+    reference_year: int
+    employee_count: int | None
+    source_label: str
+    source_table_id: str
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class MarketSizeContext(BaseModel):
+    source: str
+    source_label: str
+    industry_code: str
+    industry_label: str
+    reference_year: int
+    employee_count: int | None
+    summary: str
+    rationale: str
+
+
+class SearchEvidenceContext(BaseModel):
+    source: str
+    source_label: str
+    query: str
+    total_results: int | None
+    top_titles: list[str] = Field(default_factory=list)
+    summary: str
+
+
+class ShoppingEvidenceContext(BaseModel):
+    source: str
+    source_label: str
+    category_code: str
+    category_label: str
+    reference_window: str
+    recent_ratio: float | None
+    peak_ratio: float | None
+    summary: str
+
+
+class PublicDataRecommendation(BaseModel):
+    dataset_id: str
+    source_label: str
+    dataset_name: str
+    dataset_url: str
+    relevance: str
+    use_case: str
+    caveat: str
+
+
+class PublicDataContext(BaseModel):
+    summary: str
+    recommendations: list[PublicDataRecommendation] = Field(default_factory=list)
+
+
+class NaverShoppingCategoryOption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    label: str
+    description: str
+
+
+class NaverShoppingCategorySelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    label: str
+    rationale: str
+
+
+class NaverShoppingCategoryRequest(BaseModel):
+    name: str
+    param: list[str]
+
+
+class NaverShoppingInsightRequest(BaseModel):
+    startDate: date
+    endDate: date
+    timeUnit: str
+    category: list[NaverShoppingCategoryRequest]
+    device: str | None = None
+    gender: str | None = None
+    ages: list[str] | None = None
+
+
+class NaverShoppingInsightPoint(BaseModel):
+    period: date
+    ratio: float
+
+
+class NaverShoppingInsightResult(BaseModel):
+    title: str
+    category: list[str]
+    data: list[NaverShoppingInsightPoint]
+
+
+class NaverShoppingInsightResponse(BaseModel):
+    startDate: date
+    endDate: date
+    timeUnit: str
+    results: list[NaverShoppingInsightResult]
+
+
+class NaverSearchRequest(BaseModel):
+    query: str
+    display: int = 5
+    start: int = 1
+    sort: str = "sim"
+
+
+class NaverSearchItem(BaseModel):
+    title: str
+    link: str | None = None
+    description: str | None = None
+
+
+class NaverSearchResponse(BaseModel):
+    lastBuildDate: str | None = None
+    total: int = 0
+    start: int = 1
+    display: int = 0
+    items: list[NaverSearchItem] = Field(default_factory=list)
+
+
 class GoogleSearchRequest(BaseModel):
     q: str
     num: int = 5
@@ -201,6 +350,10 @@ class FinalAnalysisInput(BaseModel):
     features: TrendFeatureSet
     score_breakdown: ScoreBreakdown
     risk_flags: list[str]
+    market_size_context: MarketSizeContext | None = None
+    search_evidence_context: SearchEvidenceContext | None = None
+    shopping_evidence_context: ShoppingEvidenceContext | None = None
+    public_data_context: PublicDataContext | None = None
 
 
 class FinalAnalysisOutput(BaseModel):
@@ -215,6 +368,10 @@ class FinalAnalysisOutput(BaseModel):
     implementation_feasibility: str
     mvp_idea: list[str]
     go_to_market: list[str]
+    market_size_summary: str
+    search_evidence_summary: str
+    shopping_evidence_summary: str
+    public_data_summary: str
     risk_flags: list[str]
     recommended_priority: int
 

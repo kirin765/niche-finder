@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from micro_niche_finder.domain.enums import FitLevel, RepeatFrequency
 from micro_niche_finder.domain.schemas import ProblemCandidateGenerated, ScoreBreakdown, TrendFeatureSet
+from micro_niche_finder.services.public_data_opportunity_service import PublicDataOpportunityService
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +20,7 @@ class ScoreWeights:
 class ScoringService:
     def __init__(self, weights: ScoreWeights | None = None) -> None:
         self.weights = weights or ScoreWeights()
+        self.public_data_opportunity_service = PublicDataOpportunityService()
 
     def score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> ScoreBreakdown:
         repeated_pain = self._repeat_score(candidate.repeat_frequency)
@@ -78,6 +80,7 @@ class ScoringService:
         for marker in ("누락", "실수", "시간", "매출", "cs", "손실"):
             if marker in pain_text:
                 intensity += 0.08
+        intensity += self._manual_workaround_signal(candidate) * 0.08
         intensity += min(0.18, features.commercial_intent_ratio * 0.18)
         return min(intensity, 1.0)
 
@@ -103,7 +106,10 @@ class ScoringService:
     def _implementation_fit(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
         fit = self._fit_score(candidate.software_fit)
         fit += features.problem_specificity * 0.15
+        fit += self._solo_builder_bonus(candidate) * 0.18
+        fit += self._public_data_leverage(candidate) * 0.08
         fit -= features.brand_dependency_score * 0.15
+        fit -= self._broad_scope_signal(candidate) * 0.18
         if "regulation_risk" in candidate.risk_flags:
             fit -= 0.25
         if "enterprise_complexity" in candidate.risk_flags:
@@ -122,6 +128,100 @@ class ScoringService:
             penalties += 0.05
         if "regulation_risk" in candidate.risk_flags:
             penalties += 0.12
+        if "enterprise_complexity" in candidate.risk_flags:
+            penalties += 0.08
         if "high_accuracy_required" in candidate.risk_flags:
             penalties += 0.08
+        if "regulation_risk" in candidate.risk_flags and self._public_data_regulatory_signal(candidate) > 0:
+            penalties += 0.04
+        penalties += self._broad_scope_signal(candidate) * 0.06
         return penalties
+
+    def _manual_workaround_signal(self, candidate: ProblemCandidateGenerated) -> float:
+        markers = ("엑셀", "수기", "카톡", "카카오톡", "문자", "전화", "메모", "이메일", "톡톡", "복붙")
+        text = " ".join(candidate.current_workaround + [candidate.job_to_be_done, candidate.pain]).lower()
+        hits = sum(1 for marker in markers if marker in text)
+        return min(1.0, hits / 3)
+
+    def _solo_builder_bonus(self, candidate: ProblemCandidateGenerated) -> float:
+        text = " ".join(
+            [
+                candidate.persona,
+                candidate.job_to_be_done,
+                candidate.pain,
+                *candidate.current_workaround,
+                *candidate.query_candidates,
+            ]
+        ).lower()
+        narrow_markers = (
+            "예약",
+            "정산",
+            "수납",
+            "입금",
+            "문의",
+            "배정",
+            "스케줄",
+            "출결",
+            "재고",
+            "발주",
+            "리마인드",
+            "노쇼",
+            "청구",
+            "미수금",
+            "환불",
+            "보강",
+        )
+        operator_markers = ("원장", "사장", "운영자", "실장", "매니저", "셀러", "1인", "소형", "작은")
+        manual_bonus = self._manual_workaround_signal(candidate) * 0.45
+        narrow_bonus = min(1.0, sum(1 for marker in narrow_markers if marker in text) / 4) * 0.35
+        operator_bonus = min(1.0, sum(1 for marker in operator_markers if marker in text) / 2) * 0.2
+        return min(1.0, manual_bonus + narrow_bonus + operator_bonus)
+
+    def _broad_scope_signal(self, candidate: ProblemCandidateGenerated) -> float:
+        text = " ".join(
+            [
+                candidate.persona,
+                candidate.job_to_be_done,
+                candidate.pain,
+                *candidate.current_workaround,
+                *candidate.query_candidates,
+            ]
+        ).lower()
+        broad_markers = (
+            "올인원",
+            "전사",
+            "그룹웨어",
+            "erp",
+            "crm",
+            "마케팅",
+            "브랜딩",
+            "콘텐츠",
+            "광고",
+            "통합 플랫폼",
+            "대기업",
+            "엔터프라이즈",
+        )
+        hits = sum(1 for marker in broad_markers if marker in text)
+        return min(1.0, hits / 3)
+
+    def _public_data_leverage(self, candidate: ProblemCandidateGenerated) -> float:
+        return self.public_data_opportunity_service.leverage_score(
+            canonical_name=" ".join(candidate.query_candidates[:1]) or candidate.job_to_be_done,
+            persona=candidate.persona,
+            problem_summary=candidate.pain,
+            query_group=candidate.query_candidates,
+        )
+
+    def _public_data_regulatory_signal(self, candidate: ProblemCandidateGenerated) -> float:
+        text = " ".join(
+            [
+                candidate.persona,
+                candidate.job_to_be_done,
+                candidate.pain,
+                *candidate.current_workaround,
+                *candidate.query_candidates,
+            ]
+        ).lower()
+        markers = ("의료기기", "품목허가", "푸드", "원재료", "알레르기", "영양표시", "식품표시")
+        hits = sum(1 for marker in markers if marker in text)
+        return min(1.0, hits / 2)
