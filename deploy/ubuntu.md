@@ -18,7 +18,7 @@ cp deploy/systemd/micro-niche-finder.env.example /etc/micro-niche-finder.env
 
 Fill `/etc/micro-niche-finder.env` with production secrets.
 
-For Google Custom Search, set `GOOGLE_CUSTOM_SEARCH_API_KEY` and `GOOGLE_CUSTOM_SEARCH_CX` explicitly in the environment file.
+For Brave Search, set `BRAVE_SEARCH_API_KEY` explicitly in the environment file.
 For Naver Search, you can either set `NAVER_SEARCH_CLIENT_ID` / `NAVER_SEARCH_CLIENT_SECRET` or let it reuse the Naver DataLab app credentials.
 For Naver Shopping Insight, set `NAVER_SHOPPING_CATEGORY_OPTIONS_JSON` to the shopping categories you want the LLM to map into. This source is most useful for ecommerce, seller, and product niches.
 
@@ -72,7 +72,7 @@ sudo systemctl enable --now micro-niche-daily-report.timer
 - `micro-niche-collector.timer`: wakes the collector every 15 minutes.
 - `micro-niche-collector.service`: computes the current budget allowance and collects only the due schedules it can afford.
 - `micro-niche-google-collector.timer`: wakes the Google collector every 30 minutes.
-- `micro-niche-google-collector.service`: samples Google Custom Search queries for cross-source validation.
+- `micro-niche-google-collector.service`: samples Brave Search queries for cross-source validation.
 - `micro-niche-naver-search-collector.timer`: refreshes Naver Search evidence every 30 minutes.
 - `micro-niche-naver-search-collector.service`: samples Naver web search evidence for demand/context validation.
 - `micro-niche-naver-shopping-insight-collector.timer`: refreshes Shopping Insight evidence every 2 hours for commerce-relevant niches.
@@ -112,7 +112,7 @@ python -m apps.worker.run_daily_report
 - Daily limit defaults to `1000`.
 - The allocator divides remaining calls by the number of remaining timer slots for the day.
 - With a 15-minute timer, the collector tries to consume the daily budget smoothly instead of front-loading all calls.
-- Google Custom Search has its own daily limit and is treated as a supplementary source, not the primary ranking source.
+- Brave Search has its own daily limit and is treated as a supplementary source, not the primary ranking source.
 - Naver Search is a supplementary demand-evidence source for narrow keyword niches and does not replace trend collection.
 - Naver Shopping Insight is only useful for commerce/product niches, so it is intentionally scheduled selectively instead of for every query group.
 - KOSIS employee-count collection is a supplementary market-size reference and does not change niche scoring by itself.

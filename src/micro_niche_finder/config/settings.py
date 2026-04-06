@@ -19,13 +19,12 @@ class Settings(BaseSettings):
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT")
     openai_text_verbosity: str = Field(default="medium", alias="OPENAI_TEXT_VERBOSITY")
 
-    google_custom_search_api_key: str | None = Field(default=None, alias="GOOGLE_CUSTOM_SEARCH_API_KEY")
-    google_custom_search_cx: str | None = Field(default=None, alias="GOOGLE_CUSTOM_SEARCH_CX")
-    google_custom_search_base_url: str = Field(
-        default="https://customsearch.googleapis.com/customsearch/v1",
-        alias="GOOGLE_CUSTOM_SEARCH_BASE_URL",
+    brave_search_api_key: str | None = Field(default=None, alias="BRAVE_SEARCH_API_KEY")
+    brave_search_base_url: str = Field(
+        default="https://api.search.brave.com/res/v1/web/search",
+        alias="BRAVE_SEARCH_BASE_URL",
     )
-    google_custom_search_daily_limit: int = Field(default=100, alias="GOOGLE_CUSTOM_SEARCH_DAILY_LIMIT")
+    brave_search_daily_limit: int = Field(default=100, alias="BRAVE_SEARCH_DAILY_LIMIT")
 
     kosis_api_key: str | None = Field(default=None, alias="KOSIS_API_KEY")
     kosis_base_url: str = Field(

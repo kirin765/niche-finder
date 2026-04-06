@@ -9,7 +9,7 @@ from micro_niche_finder.services.search_channel_classifier import SearchChannelC
 
 
 class GoogleSearchService:
-    SOURCE = "google_custom_search"
+    SOURCE = "brave_search_web"
 
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -17,9 +17,7 @@ class GoogleSearchService:
         self._runtime_disabled = False
 
     def is_configured(self) -> bool:
-        return not self._runtime_disabled and bool(
-            self.settings.google_custom_search_api_key and self.settings.google_custom_search_cx
-        )
+        return not self._runtime_disabled and bool(self.settings.brave_search_api_key)
 
     @retry(
         wait=wait_exponential(min=1, max=8),
@@ -31,17 +29,19 @@ class GoogleSearchService:
         if not self.is_configured():
             return self._mock_response(request)
 
+        headers = {
+            "Accept": "application/json",
+            "Accept-Encoding": "gzip",
+            "X-Subscription-Token": self.settings.brave_search_api_key or "",
+        }
         params = {
-            "key": self.settings.google_custom_search_api_key,
-            "cx": self.settings.google_custom_search_cx,
             "q": request.q,
-            "num": request.num,
-            "gl": request.gl,
-            "hl": request.hl,
-            "safe": request.safe,
+            "count": request.num,
+            "country": request.gl.upper(),
+            "search_lang": request.hl,
         }
         with httpx.Client(timeout=20.0) as client:
-            response = client.get(self.settings.google_custom_search_base_url, params=params)
+            response = client.get(self.settings.brave_search_base_url, headers=headers, params=params)
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
@@ -49,7 +49,7 @@ class GoogleSearchService:
                     self._runtime_disabled = True
                     return self._mock_response(request)
                 raise
-        return GoogleCustomSearchResponse.model_validate(response.json())
+        return self._transform_brave_response(response.json(), request=request)
 
     def _mock_response(self, request: GoogleSearchRequest) -> GoogleCustomSearchResponse:
         pseudo_total = max(10, min(5000, len(request.q) * 137))
@@ -92,6 +92,32 @@ class GoogleSearchService:
             query=query,
             documents=documents,
             suggested_channels=suggested_channels,
+        )
+
+    def _transform_brave_response(
+        self,
+        payload: dict,
+        *,
+        request: GoogleSearchRequest,
+    ) -> GoogleCustomSearchResponse:
+        web_results = payload.get("web", {}).get("results", [])
+        items = [
+            {
+                "title": item.get("title"),
+                "link": item.get("url"),
+                "snippet": item.get("description"),
+                "displayLink": item.get("meta_url", {}).get("netloc") or item.get("profile", {}).get("long_name"),
+            }
+            for item in web_results[: request.num]
+        ]
+        total_results = len(web_results)
+        if payload.get("query", {}).get("more_results_available"):
+            total_results = max(total_results, request.num + 1)
+        return GoogleCustomSearchResponse.model_validate(
+            {
+                "searchInformation": {"totalResults": str(total_results)},
+                "items": items,
+            }
         )
 
     @staticmethod

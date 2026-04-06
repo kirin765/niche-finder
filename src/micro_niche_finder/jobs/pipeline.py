@@ -129,7 +129,7 @@ class PipelineService:
             )
             collection_repo.upsert_schedule(
                 query_group_id=query_entity.id,
-                source="google_custom_search",
+                source=GoogleSearchService.SOURCE,
                 priority=max(1, self.collection_scheduler_service.settings.collector_default_priority - 20),
                 cadence_minutes=self.collection_scheduler_service.settings.collector_schedule_cadence_minutes,
                 collection_targets_json=[

@@ -7,7 +7,7 @@ from micro_niche_finder.config.database import SessionLocal
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run one budgeted Google Custom Search collection cycle.")
+    parser = argparse.ArgumentParser(description="Run one budgeted Brave Search collection cycle.")
     parser.add_argument("--max-calls", type=int, default=None, help="Optional hard cap for this run.")
     args = parser.parse_args()
 

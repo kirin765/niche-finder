@@ -6,8 +6,7 @@ from micro_niche_finder.services.google_search_service import GoogleSearchServic
 
 
 def test_google_search_service_mock_fallback_returns_shape(monkeypatch) -> None:
-    monkeypatch.setenv("GOOGLE_CUSTOM_SEARCH_API_KEY", "")
-    monkeypatch.setenv("GOOGLE_CUSTOM_SEARCH_CX", "")
+    monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "")
     get_settings.cache_clear()
 
     service = GoogleSearchService()
@@ -84,3 +83,33 @@ def test_google_search_service_falls_back_on_permission_error(monkeypatch) -> No
 
     assert int(response.searchInformation.totalResults) > 0
     assert service.is_configured() is False
+
+
+def test_google_search_service_transforms_brave_response() -> None:
+    service = GoogleSearchService()
+    response = service._transform_brave_response(
+        {
+            "query": {"more_results_available": True},
+            "web": {
+                "results": [
+                    {
+                        "title": "통통통 | 학원관리프로그램 전문 솔루션",
+                        "url": "https://www.tongtongtong.co.kr/",
+                        "description": "학원 운영을 한 번에 관리하는 솔루션",
+                        "meta_url": {"netloc": "tongtongtong.co.kr"},
+                    },
+                    {
+                        "title": "학원 상담 관리 가이드",
+                        "url": "https://blog.example.com/academy-guide",
+                        "description": "운영 가이드",
+                        "meta_url": {"netloc": "blog.example.com"},
+                    },
+                ]
+            },
+        },
+        request=GoogleSearchRequest(q="학원 상담 관리", num=3),
+    )
+
+    assert response.searchInformation.totalResults == "4"
+    assert response.items[0].link == "https://www.tongtongtong.co.kr/"
+    assert response.items[0].displayLink == "tongtongtong.co.kr"

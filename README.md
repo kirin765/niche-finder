@@ -138,18 +138,15 @@ It helps answer:
 - Are there already niche tools or workaround posts?
 - Is the category already crowded with obvious competitors?
 
-### 4. Google Custom Search API
+### 4. Brave Search API
 
-Used as an optional supplementary evidence source for broader web validation.
+Used as an optional supplementary evidence source for broader web validation outside Naver-heavy surfaces.
 
 It is helpful when:
 
 - relevant evidence is outside Naver-heavy surfaces
-- the niche overlaps with global SaaS patterns
-
-Important note:
-
-- This integration may still fail if the Google Cloud project is not properly enabled for Custom Search JSON API.
+- the niche overlaps with broader web or SaaS patterns
+- competitor and content evidence should be cross-checked against a non-Naver index
 
 ### 5. Naver Shopping Insight API
 
@@ -687,9 +684,8 @@ Main groups of environment variables:
   - `OPENAI_API_KEY`
   - `OPENAI_CANDIDATE_MODEL`
   - `OPENAI_FINAL_MODEL`
-- **Google Search**
-  - `GOOGLE_CUSTOM_SEARCH_API_KEY`
-  - `GOOGLE_CUSTOM_SEARCH_CX`
+- **Brave Search**
+  - `BRAVE_SEARCH_API_KEY`
 - **Naver DataLab**
   - `NAVER_DATALAB_CLIENT_ID`
   - `NAVER_DATALAB_CLIENT_SECRET`

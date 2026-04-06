@@ -31,7 +31,7 @@ class GoogleCollectorService:
         counter = collection_repo.get_or_create_usage_counter(
             source=self.SOURCE,
             usage_date=now.date(),
-            daily_limit=self.google_search_service.settings.google_custom_search_daily_limit,
+            daily_limit=self.google_search_service.settings.brave_search_daily_limit,
         )
         allowance = self.budget_allocator.allowance_for_run(
             calls_made_today=counter.calls_made,
