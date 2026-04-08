@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from time import sleep
 from zoneinfo import ZoneInfo
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from micro_niche_finder.config.settings import get_settings
@@ -43,25 +45,44 @@ class DailyReportService:
         self.telegram_service = telegram_service
         self.gmail_service = gmail_service
 
-    def run(self, *, session: Session) -> DailyReportRunSummary:
+    def run(self, *, session: Session, refresh_seeds: bool | None = None) -> DailyReportRunSummary:
         if not self.telegram_service.is_configured() and not self.gmail_service.is_configured():
             raise RuntimeError("No daily report delivery channel is configured")
 
         repo = SeedCategoryRepository(session)
-        seeds = repo.list_all()[: self.settings.daily_report_seed_limit]
+        seeds = self._resolve_seeds(
+            session=session,
+            repo=repo,
+            refresh_seeds=self.settings.daily_report_refresh_seeds if refresh_seeds is None else refresh_seeds,
+        )
         if not seeds:
             raise RuntimeError("No seed categories exist for daily report generation")
 
         generated_at = datetime.now(ZoneInfo(self.settings.daily_report_timezone))
         seed_reports: list[DailySeedReport] = []
         for seed in seeds:
-            pipeline = self.pipeline_service.run(
-                session=session,
-                seed_category_id=seed.id,
-                candidate_count=self.settings.daily_report_candidate_count,
-                top_k=self.settings.daily_report_top_k_per_seed,
-            )
-            session.commit()
+            pipeline = None
+            last_error = None
+            for attempt in range(3):
+                try:
+                    pipeline = self.pipeline_service.run(
+                        session=session,
+                        seed_category_id=seed.id,
+                        candidate_count=self.settings.daily_report_candidate_count,
+                        top_k=self.settings.daily_report_top_k_per_seed,
+                    )
+                    session.commit()
+                    break
+                except OperationalError as exc:
+                    session.rollback()
+                    last_error = exc
+                    if "database is locked" not in str(exc).lower() or attempt == 2:
+                        raise
+                    sleep(2 * (attempt + 1))
+            if pipeline is None:
+                if last_error is not None:
+                    raise last_error
+                continue
             if not pipeline.reports:
                 continue
             seed_reports.append(
@@ -93,6 +114,30 @@ class DailyReportService:
             emails_sent=emails_sent,
             niches=[item.report.niche_name for item in seed_reports],
         )
+
+    def _resolve_seeds(
+        self,
+        *,
+        session: Session,
+        repo: SeedCategoryRepository,
+        refresh_seeds: bool,
+    ) -> list:
+        if not refresh_seeds:
+            return repo.list_all()[: self.settings.daily_report_seed_limit]
+
+        discovery = self.pipeline_service.llm_service.generate_seed_categories(
+            seed_count=self.settings.daily_report_seed_limit
+        )
+        resolved = []
+        for suggestion in discovery.seeds:
+            seed = repo.get_by_name(suggestion.name)
+            if seed is None:
+                seed = repo.create(name=suggestion.name, description=suggestion.description)
+            elif suggestion.description and seed.description != suggestion.description:
+                seed.description = suggestion.description
+            resolved.append(seed)
+        session.commit()
+        return resolved[: self.settings.daily_report_seed_limit]
 
     def _format_message(self, seed_reports: list[DailySeedReport], generated_at: datetime) -> str:
         header = (

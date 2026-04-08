@@ -89,6 +89,7 @@ class Settings(BaseSettings):
     daily_report_seed_limit: int = Field(default=5, alias="DAILY_REPORT_SEED_LIMIT")
     daily_report_candidate_count: int = Field(default=5, alias="DAILY_REPORT_CANDIDATE_COUNT")
     daily_report_top_k_per_seed: int = Field(default=1, alias="DAILY_REPORT_TOP_K_PER_SEED")
+    daily_report_refresh_seeds: bool = Field(default=False, alias="DAILY_REPORT_REFRESH_SEEDS")
     collector_interval_minutes: int = Field(default=15, alias="COLLECTOR_INTERVAL_MINUTES")
     collector_schedule_cadence_minutes: int = Field(default=180, alias="COLLECTOR_SCHEDULE_CADENCE_MINUTES")
     collector_default_priority: int = Field(default=100, alias="COLLECTOR_DEFAULT_PRIORITY")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import TypeVar
 
@@ -28,13 +29,20 @@ SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 
 class OpenAIResearchService:
+    DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+
     def __init__(self) -> None:
         self.settings = get_settings()
         self.client = None
         if self.settings.openai_api_key:
+            base_url = (self.settings.openai_base_url or "").strip()
+            if not base_url:
+                # An empty OPENAI_BASE_URL environment variable breaks the OpenAI SDK under systemd.
+                os.environ.pop("OPENAI_BASE_URL", None)
+                base_url = self.DEFAULT_OPENAI_BASE_URL
             self.client = OpenAI(
                 api_key=self.settings.openai_api_key,
-                base_url=self.settings.openai_base_url or None,
+                base_url=base_url,
             )
 
     def generate_candidates(self, seed_category: str, candidate_count: int) -> CandidateGenerationResult:
