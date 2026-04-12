@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import re
 import time
 
 import httpx
@@ -27,7 +28,13 @@ class NaverAdsKeywordService:
         )
 
     def build_request(self, keywords: list[str], *, limit: int = 5) -> KeywordVolumeRequest:
-        cleaned = list(dict.fromkeys(" ".join(keyword.strip().split()) for keyword in keywords if keyword.strip()))
+        cleaned = list(
+            dict.fromkeys(
+                re.sub(r"\s+", "", keyword.strip())
+                for keyword in keywords
+                if re.sub(r"\s+", "", keyword.strip())
+            )
+        )
         return KeywordVolumeRequest(keywords=cleaned[:limit])
 
     @retry(wait=wait_exponential(min=1, max=8), stop=stop_after_attempt(3))
@@ -35,6 +42,7 @@ class NaverAdsKeywordService:
         if not self.is_configured():
             return self._mock_response(request)
 
+        sanitized_request = self.build_request(request.keywords, limit=len(request.keywords) or 5)
         timestamp = str(int(time.time() * 1000))
         uri = "/keywordstool"
         signature = base64.b64encode(
@@ -51,14 +59,14 @@ class NaverAdsKeywordService:
             "X-Signature": signature,
         }
         params = {
-            "hintKeywords": ",".join(request.keywords),
+            "hintKeywords": ",".join(sanitized_request.keywords),
             "showDetail": 1,
         }
         with httpx.Client(timeout=20.0) as client:
             response = client.get(self.settings.naver_ads_base_url, headers=headers, params=params)
             response.raise_for_status()
         payload = response.json()
-        return [
+        metrics = [
             KeywordVolumeMetric(
                 keyword=item.get("relKeyword") or "",
                 monthly_pc_searches=self._to_int(item.get("monthlyPcQcCnt")),
@@ -70,6 +78,9 @@ class NaverAdsKeywordService:
             )
             for item in payload.get("keywordList", [])
         ]
+        exact_keywords = set(sanitized_request.keywords)
+        exact_metrics = [item for item in metrics if item.keyword in exact_keywords]
+        return exact_metrics or metrics
 
     def build_context(self, *, keywords: list[str], metrics: list[KeywordVolumeMetric]) -> AbsoluteDemandContext:
         totals = [item.monthly_total_searches for item in metrics if item.monthly_total_searches is not None]

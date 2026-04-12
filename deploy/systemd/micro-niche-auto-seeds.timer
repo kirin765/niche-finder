@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Micro Niche Finder auto seed and report generator daily
+
+[Timer]
+OnBootSec=20min
+OnUnitActiveSec=1d
+Unit=micro-niche-auto-seeds.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
