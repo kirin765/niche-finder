@@ -87,6 +87,42 @@ def test_google_search_service_falls_back_on_permission_error(monkeypatch) -> No
     assert service.is_configured() is False
 
 
+def test_google_search_service_falls_back_on_rate_limit(monkeypatch) -> None:
+    class _RateLimitedClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, *args, **kwargs):
+            request = httpx.Request("GET", "https://api.search.brave.com/res/v1/web/search")
+            return httpx.Response(
+                429,
+                request=request,
+                json={
+                    "error": {
+                        "code": 429,
+                        "message": "Rate limit exceeded.",
+                    }
+                },
+            )
+
+    monkeypatch.setattr(httpx, "Client", _RateLimitedClient)
+    get_settings.cache_clear()
+
+    service = GoogleSearchService()
+    response = service.fetch(GoogleSearchRequest(q="학원 상담 관리", num=3))
+
+    assert int(response.searchInformation.totalResults) > 0
+    assert service.is_configured() is False
+
+    get_settings.cache_clear()
+
+
 def test_google_search_service_transforms_brave_response() -> None:
     service = GoogleSearchService()
     response = service._transform_brave_response(

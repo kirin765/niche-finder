@@ -45,7 +45,7 @@ class GoogleSearchService:
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                if self._is_permission_error(exc):
+                if self._is_permission_error(exc) or self._is_rate_limit_error(exc):
                     self._runtime_disabled = True
                     return self._mock_response(request)
                 raise
@@ -123,6 +123,10 @@ class GoogleSearchService:
     @staticmethod
     def _is_permission_error(exc: httpx.HTTPStatusError) -> bool:
         return exc.response.status_code in {401, 403}
+
+    @staticmethod
+    def _is_rate_limit_error(exc: httpx.HTTPStatusError) -> bool:
+        return exc.response.status_code == 429
 
     @staticmethod
     def _should_retry(exc: Exception) -> bool:
