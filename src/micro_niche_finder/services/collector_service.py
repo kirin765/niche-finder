@@ -77,7 +77,11 @@ class CollectorService:
                     raw_response_json=response.model_dump(mode="json"),
                 )
                 if target.updates_features:
-                    features = self.feature_service.extract(response=response, query_count=len(schedule.query_group.queries_json))
+                    features = self.feature_service.extract(
+                        response=response,
+                        query_count=len(schedule.query_group.queries_json),
+                        queries=schedule.query_group.queries_json,
+                    )
                     trend_repo.upsert_feature(query_group_id=schedule.query_group_id, **features.model_dump())
 
                 schedule.last_collected_at = now

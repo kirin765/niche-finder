@@ -1,4 +1,5 @@
-from micro_niche_finder.domain.schemas import ProblemCandidateGenerated, TrendFeatureSet
+from micro_niche_finder.domain.schemas import DataLabResponse, ProblemCandidateGenerated, TrendFeatureSet
+from micro_niche_finder.services.feature_service import FeatureExtractionService
 from micro_niche_finder.services.scoring_service import ScoringService
 
 
@@ -32,14 +33,20 @@ def make_candidate(**overrides) -> ProblemCandidateGenerated:
     base = {
         "seed_category": "스마트스토어 운영",
         "persona": "소형 셀러",
+        "buyer": "스토어 대표 셀러",
         "job_to_be_done": "경쟁 상품 가격을 매일 확인한다",
         "pain": "수작업으로 누락과 시간 낭비가 잦다",
+        "quantified_loss": "매일 30분 이상 확인 시간이 들고 가격 대응이 늦으면 전환 손실이 생긴다.",
+        "current_spend": "대표자 시간이 계속 들고 엑셀로 직접 관리한다.",
         "repeat_frequency": "daily",
         "current_workaround": ["엑셀", "수동 검색"],
         "software_fit": "high",
         "payment_likelihood": "medium",
         "online_gtm_fit": "high",
         "market_size_confidence": "high",
+        "decision_maker_clarity": "high",
+        "manual_first_viability": "high",
+        "integration_lightness": "high",
         "risk_flags": [],
         "query_candidates": ["경쟁사 가격 확인", "가격 모니터링"],
         "online_demand_hypothesis": "셀러가 온라인에서 가격 모니터링 도구를 자주 찾는다.",
@@ -73,6 +80,9 @@ def test_one_off_low_fit_candidate_stays_low() -> None:
         payment_likelihood="low",
         online_gtm_fit="low",
         market_size_confidence="low",
+        decision_maker_clarity="low",
+        manual_first_viability="low",
+        integration_lightness="low",
         pain="일회성 정보 탐색 수요다",
         online_acquisition_channels=["지인 소개"],
     )
@@ -107,6 +117,41 @@ def test_low_online_demand_and_gtm_are_penalized() -> None:
     assert score.online_demand < 0.4
     assert score.online_gtm_efficiency < 0.3
     assert score.penalties >= 0.18
+
+
+def test_trackable_high_traffic_niche_scores_above_thin_traffic_niche() -> None:
+    service = ScoringService()
+    strong = service.score(
+        make_candidate(
+            online_acquisition_channels=["네이버 검색광고", "블로그 SEO", "유튜브 데모"],
+            query_candidates=["학원 보강 관리", "학원 출결 관리", "학원 출결 자동화"],
+        ),
+        make_features(
+            online_demand_score=0.78,
+            absolute_demand_score=0.82,
+            online_gtm_efficiency_score=0.81,
+            keyword_difficulty_score=0.24,
+            commercial_intent_ratio=0.74,
+        ),
+    )
+    weak = service.score(
+        make_candidate(
+            online_acquisition_channels=["지인 소개"],
+            query_candidates=["학원 운영 조언"],
+            online_gtm_fit="low",
+        ),
+        make_features(
+            online_demand_score=0.34,
+            absolute_demand_score=0.18,
+            online_gtm_efficiency_score=0.22,
+            keyword_difficulty_score=0.71,
+            commercial_intent_ratio=0.22,
+        ),
+    )
+
+    assert strong.online_demand > weak.online_demand
+    assert strong.online_gtm_efficiency > weak.online_gtm_efficiency
+    assert strong.final_score > weak.final_score
 
 
 def test_large_market_and_saturated_serp_are_penalized() -> None:
@@ -172,9 +217,16 @@ def test_broad_enterprise_scope_is_penalized_for_solo_founder() -> None:
     service = ScoringService()
     candidate = make_candidate(
         persona="중견기업 운영팀",
+        buyer="운영 총괄 리더",
         job_to_be_done="전사 ERP와 CRM을 통합한 올인원 운영 플랫폼을 도입한다",
         pain="여러 부서가 사용하는 그룹웨어와 마케팅 플랫폼을 한 번에 통합하고 싶다",
+        quantified_loss="전사 시스템이 분산되어 있지만 손실이 명확하게 한 워크플로로 좁혀지지 않는다.",
+        current_spend="이미 ERP, CRM, 그룹웨어 예산과 운영 인력이 투입되고 있다.",
         current_workaround=["ERP", "CRM", "그룹웨어"],
+        payment_likelihood="low",
+        decision_maker_clarity="low",
+        manual_first_viability="low",
+        integration_lightness="low",
         query_candidates=["ERP 통합 플랫폼", "올인원 CRM", "전사 운영 플랫폼"],
         risk_flags=["enterprise_complexity"],
     )
@@ -198,3 +250,24 @@ def test_public_data_leverage_boosts_fragmented_commerce_workflows() -> None:
 
     assert score.implementation_feasibility > 0.9
     assert score.final_score > 75
+
+
+def test_missing_trend_data_defaults_stay_conservative() -> None:
+    service = FeatureExtractionService()
+    response = DataLabResponse.model_validate(
+        {
+            "startDate": "2026-01-01",
+            "endDate": "2026-03-31",
+            "timeUnit": "week",
+            "results": [{"title": "학원 보강 관리", "keywords": ["학원 보강 관리"], "data": []}],
+        }
+    )
+
+    features = service.extract(response=response, query_count=1, queries=["학원 보강 관리"])
+
+    assert features.absolute_demand_score == 0.15
+    assert features.payability_score == 0.2
+    assert features.market_size_sufficiency_score == 0.25
+    assert features.market_size_ceiling_score == 0.25
+    assert features.competitive_whitespace_score == 0.25
+    assert features.keyword_difficulty_score == 0.65

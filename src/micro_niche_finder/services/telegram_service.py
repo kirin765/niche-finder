@@ -18,14 +18,16 @@ class TelegramService:
         if not self.is_configured():
             raise RuntimeError("Telegram service is not configured")
         chunks = self._split_message(text)
+        total = len(chunks)
         sent = 0
         with httpx.Client(timeout=20.0) as client:
-            for chunk in chunks:
+            for index, chunk in enumerate(chunks, start=1):
+                numbered = chunk if total == 1 else f"({index}/{total})\n{chunk}"
                 response = client.post(
                     f"{self.settings.telegram_base_url}/bot{self.settings.telegram_bot_token}/sendMessage",
                     json={
                         "chat_id": self.settings.telegram_chat_id,
-                        "text": chunk,
+                        "text": numbered,
                         "disable_web_page_preview": True,
                     },
                 )

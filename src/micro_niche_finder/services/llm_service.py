@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 from typing import TypeVar
 
@@ -33,11 +34,11 @@ class OpenAIResearchService:
 
     def __init__(self) -> None:
         self.settings = get_settings()
+        self.provider = (getattr(self.settings, "llm_provider", "openai") or "openai").strip().lower()
         self.client = None
-        if self.settings.openai_api_key:
+        if self.provider == "openai" and self.settings.openai_api_key:
             base_url = (self.settings.openai_base_url or "").strip()
             if not base_url:
-                # An empty OPENAI_BASE_URL environment variable breaks the OpenAI SDK under systemd.
                 os.environ.pop("OPENAI_BASE_URL", None)
                 base_url = self.DEFAULT_OPENAI_BASE_URL
             self.client = OpenAI(
@@ -53,10 +54,10 @@ class OpenAIResearchService:
             "Focus on Korean operational pain points for a solo founder.\n"
             "Constraint: return only vertical-market candidates for a specific industry or operator segment."
         )
-        if not self.settings.openai_api_key:
+        if self.provider == "openai" and not self.settings.openai_api_key:
             return self._mock_candidates(seed_category, candidate_count)
         payload = self._structured_response(
-            model=self.settings.openai_candidate_model,
+            model=self._candidate_model(),
             instructions=system_prompt,
             user_prompt=user_prompt,
             schema=CandidateGenerationPayload,
@@ -71,10 +72,10 @@ class OpenAIResearchService:
             "Avoid celebrity/news/trend topics and prefer durable small-business workflows.\n"
             "Constraint: return only vertical-market seeds, not horizontal software categories."
         )
-        if not self.settings.openai_api_key:
+        if self.provider == "openai" and not self.settings.openai_api_key:
             return self._mock_seed_categories(seed_count)
         payload = self._structured_response(
-            model=self.settings.openai_candidate_model,
+            model=self._candidate_model(),
             instructions=system_prompt,
             user_prompt=user_prompt,
             schema=SeedCategoryDiscoveryPayload,
@@ -83,10 +84,10 @@ class OpenAIResearchService:
 
     def analyze_top_candidate(self, payload: FinalAnalysisInput) -> FinalAnalysisOutput:
         system_prompt = self._load_prompt("final_analysis.md")
-        if not self.settings.openai_api_key:
+        if self.provider == "openai" and not self.settings.openai_api_key:
             return self._mock_final_analysis(payload)
         return self._structured_response(
-            model=self.settings.openai_final_model,
+            model=self._final_model(),
             instructions=system_prompt,
             user_prompt=payload.model_dump_json(indent=2),
             schema=FinalAnalysisOutput,
@@ -111,10 +112,10 @@ class OpenAIResearchService:
             "query_group": query_group,
             "industry_options": [item.model_dump(mode="json") for item in options],
         }
-        if not self.settings.openai_api_key:
+        if self.provider == "openai" and not self.settings.openai_api_key:
             return self._mock_kosis_industry(options)
         return self._structured_response(
-            model=self.settings.openai_candidate_model,
+            model=self._candidate_model(),
             instructions=system_prompt,
             user_prompt=json.dumps(payload, ensure_ascii=False, indent=2),
             schema=KosisIndustrySelection,
@@ -137,10 +138,10 @@ class OpenAIResearchService:
             "query_group": query_group,
             "category_options": [item.model_dump(mode="json") for item in options],
         }
-        if not self.settings.openai_api_key:
+        if self.provider == "openai" and not self.settings.openai_api_key:
             return self._mock_naver_shopping_category(options)
         return self._structured_response(
-            model=self.settings.openai_candidate_model,
+            model=self._candidate_model(),
             instructions=system_prompt,
             user_prompt=json.dumps(payload, ensure_ascii=False, indent=2),
             schema=NaverShoppingCategorySelection,
@@ -148,14 +149,60 @@ class OpenAIResearchService:
 
     def expand_queries(self, candidate: ProblemCandidateGenerated) -> QueryExpansionResult:
         system_prompt = self._load_prompt("query_expansion.md")
-        if not self.settings.openai_api_key:
+        if self.provider == "openai" and not self.settings.openai_api_key:
             return self._mock_query_expansion(candidate)
         return self._structured_response(
-            model=self.settings.openai_candidate_model,
+            model=self._candidate_model(),
             instructions=system_prompt,
             user_prompt=candidate.model_dump_json(indent=2),
             schema=QueryExpansionResult,
         )
+
+    def _candidate_model(self) -> str:
+        if self.provider == "codex":
+            return getattr(self.settings, "codex_candidate_model", None) or self.settings.openai_candidate_model
+        return self.settings.openai_candidate_model
+
+    def _final_model(self) -> str:
+        if self.provider == "codex":
+            return getattr(self.settings, "codex_final_model", None) or self.settings.openai_final_model
+        return self.settings.openai_final_model
+
+    def _codex_structured_response(
+        self,
+        *,
+        model: str,
+        instructions: str,
+        user_prompt: str,
+        schema: type[SchemaT],
+    ) -> SchemaT:
+        schema_dict = schema.model_json_schema()
+        prompt = (
+            f"{instructions}\n\n"
+            "Return valid JSON only. Do not include markdown fences, commentary, or extra text.\n"
+            f"The JSON must satisfy this schema:\n{json.dumps(schema_dict, ensure_ascii=False)}\n\n"
+            f"User request:\n{user_prompt}\n"
+        )
+        cmd = [getattr(self.settings, "codex_bin", "codex"), "exec"]
+        if model:
+            cmd += ["-m", model]
+        cmd.append(prompt)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=240,
+            cwd=Path(__file__).resolve().parents[3],
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Codex exec failed: {result.stderr.strip() or result.stdout.strip()}")
+        raw = result.stdout.strip()
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise RuntimeError(f"Codex output did not contain JSON: {raw[:400]}")
+        payload = json.loads(raw[start : end + 1])
+        return TypeAdapter(schema).validate_python(payload)
 
     def _structured_response(
         self,
@@ -167,6 +214,13 @@ class OpenAIResearchService:
         reasoning_effort: str | None = None,
         text_verbosity: str | None = None,
     ) -> SchemaT:
+        if self.provider == "codex":
+            return self._codex_structured_response(
+                model=model,
+                instructions=instructions,
+                user_prompt=user_prompt,
+                schema=schema,
+            )
         if self.client is None:
             raise RuntimeError("OpenAI client is not configured")
         schema_dict = schema.model_json_schema()
@@ -196,14 +250,20 @@ class OpenAIResearchService:
             {
                 "seed_category": seed_category,
                 "persona": "소형 네이버 셀러",
+                "buyer": "스토어 대표 셀러",
                 "job_to_be_done": "경쟁 상품 가격과 리뷰 변화를 주기적으로 확인한다",
                 "pain": "수작업 확인에 시간이 많이 들고 누락이 생긴다",
+                "quantified_loss": "매일 30-60분이 가격 확인에 쓰이고 할인 타이밍을 놓치면 전환 손실이 생긴다.",
+                "current_spend": "엑셀과 수동 검색, 대표자 시간을 계속 투입한다.",
                 "repeat_frequency": "daily",
                 "current_workaround": ["엑셀", "수동 검색", "캡처"],
                 "software_fit": "high",
                 "payment_likelihood": "medium",
                 "online_gtm_fit": "high",
                 "market_size_confidence": "high",
+                "decision_maker_clarity": "high",
+                "manual_first_viability": "high",
+                "integration_lightness": "high",
                 "risk_flags": ["depends_on_external_platform"],
                 "query_candidates": [
                     "스마트스토어 경쟁사 가격 확인",
@@ -217,14 +277,20 @@ class OpenAIResearchService:
             {
                 "seed_category": seed_category,
                 "persona": "소형 학원 원장",
+                "buyer": "학원 원장",
                 "job_to_be_done": "보강과 결석 일정을 학부모 커뮤니케이션과 함께 관리한다",
                 "pain": "카톡과 엑셀로 관리해 실수가 잦고 공지가 늦어진다",
+                "quantified_loss": "주당 여러 번 공지 누락과 상담 시간이 추가로 발생하고 학부모 불만으로 이어질 수 있다.",
+                "current_spend": "원장과 상담실장이 카카오톡과 엑셀로 직접 대응한다.",
                 "repeat_frequency": "weekly",
                 "current_workaround": ["카카오톡", "엑셀", "수기 메모"],
                 "software_fit": "high",
                 "payment_likelihood": "high",
                 "online_gtm_fit": "medium",
                 "market_size_confidence": "high",
+                "decision_maker_clarity": "high",
+                "manual_first_viability": "high",
+                "integration_lightness": "medium",
                 "risk_flags": [],
                 "query_candidates": [
                     "학원 보강 관리",
@@ -241,22 +307,56 @@ class OpenAIResearchService:
 
     def _mock_final_analysis(self, payload: FinalAnalysisInput) -> FinalAnalysisOutput:
         return FinalAnalysisOutput(
+            title=f"{payload.canonical_name} | {payload.persona} 운영 기회",
             niche_name=payload.canonical_name,
             persona=payload.persona,
+            buyer=payload.buyer,
             problem_summary=payload.problem_summary,
+            core_value_proposition=(
+                f"{payload.buyer}가 {payload.problem_summary}로 생기는 시간 손실과 누락을 줄이도록 "
+                f"{payload.canonical_name} 핵심 흐름만 먼저 자동화한다."
+            ),
+            landing_page_hook=f"{payload.buyer}용 {payload.canonical_name}. {payload.quantified_loss}",
             saas_fit_score=int(round(payload.score_breakdown.final_score)),
             trend_signal_score=int(round(payload.score_breakdown.online_demand * 100)),
             payment_likelihood="medium-high" if payload.score_breakdown.payment_likelihood >= 0.65 else "medium",
             implementation_feasibility=(
                 "high" if payload.score_breakdown.implementation_feasibility >= 0.7 else "medium"
             ),
-            mvp_idea=[
-                "문제 대상 등록",
-                "변동 탐지 대시보드",
-                "주간 요약 리포트",
-                "우선순위 알림",
-            ],
+            mvp_idea=["문제 대상 등록", "변동 탐지 대시보드", "주간 요약 리포트", "우선순위 알림"],
             go_to_market=["네이버 검색 랜딩 페이지", "업계 커뮤니티", "실무형 블로그 SEO"],
+            first_10_leads=[
+                f"{payload.persona}가 모이는 네이버 카페 운영자/활동자 3명",
+                f"{payload.persona} 대상 블로그/유튜브 운영자 3명",
+                f"{payload.canonical_name} 관련 질문 글 작성자 4명",
+            ],
+            interview_questions=[
+                "이 문제는 한 주에 몇 번 반복되나?",
+                "최근 이 문제로 생긴 시간 손실이나 매출 손실은 무엇이었나?",
+                "지금은 누가 어떤 방식으로 해결하고 있나?",
+                "기존 도구를 안 쓰는 이유는 가격, 복잡도, 업종 부적합 중 무엇인가?",
+                "초기 자동화가 부족해도 수작업 대행 형태로 비용을 낼 의향이 있나?",
+            ],
+            manual_first_offer=[
+                "초기에는 폼 또는 파일 업로드를 받아 사람이 직접 정리한 결과를 전달한다.",
+                "가장 아픈 한 단계만 먼저 대신 처리해 반복 사용 여부를 본다.",
+                "대행 과정에서 공통 패턴이 확인되면 그 부분만 자동화한다.",
+            ],
+            price_test=[
+                "월 3만원 테스트",
+                "월 7만원 테스트",
+                "월 15만원 테스트",
+            ],
+            must_have_scope=[
+                "핵심 입력 한 가지",
+                "상태/누락 확인 한 화면",
+                "알림 또는 후속조치 자동화 한 가지",
+            ],
+            must_not_build_scope=[
+                "ERP/CRM/POS 전체 대체",
+                "업종 전체를 커버하는 올인원 백오피스",
+                "초기부터 복잡한 양방향 연동과 대규모 권한 체계",
+            ],
             online_demand_summary=(
                 " ".join(
                     part
@@ -309,6 +409,16 @@ class OpenAIResearchService:
                 if payload.online_gtm_context and payload.online_gtm_context.channel_signals
                 else ["네이버 검색", "블로그 SEO", "업종 커뮤니티"]
             ),
+            validation_plan=[
+                f"{payload.buyer} 5명을 인터뷰해 현재 수작업 빈도와 누락 비용을 확인한다.",
+                f"'{payload.canonical_name}' 하나만 설명하는 랜딩페이지를 열고 검색/콘텐츠 유입으로 문의 전환율을 측정한다.",
+                "초기에는 수작업 대행 방식으로도 반복 문제 해결 의향과 첫 문의 전환을 검증한다.",
+            ],
+            kill_criteria=[
+                "반복 빈도가 낮거나 긴급도가 낮다는 응답이 다수면 중단한다.",
+                "명확한 결제 주체가 끝내 확인되지 않으면 후순위로 내린다.",
+                "핵심 문제 해결에 무거운 기존 시스템 교체가 필요하면 보류한다.",
+            ],
             risk_flags=payload.risk_flags,
             recommended_priority=1,
         )

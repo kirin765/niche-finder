@@ -34,9 +34,9 @@ class FeatureExtractionService:
                     max(0.1, min(0.7, (problem_specificity * 0.5) + (commercial_intent_ratio * 0.3) + (query_diversity * 0.2))),
                     4,
                 ),
-                absolute_demand_score=0.4,
-                payability_score=0.5,
-                market_size_sufficiency_score=0.5,
+                absolute_demand_score=0.15,
+                payability_score=0.2,
+                market_size_sufficiency_score=0.25,
                 online_gtm_efficiency_score=round(
                     max(
                         0.15,
@@ -50,9 +50,9 @@ class FeatureExtractionService:
                     ),
                     4,
                 ),
-                market_size_ceiling_score=0.7,
-                competitive_whitespace_score=0.6,
-                keyword_difficulty_score=0.5,
+                market_size_ceiling_score=0.25,
+                competitive_whitespace_score=0.25,
+                keyword_difficulty_score=0.65,
             )
         recent_4 = values[-4:] if len(values) >= 4 else values
         recent_12 = values[-12:] if len(values) >= 12 else values

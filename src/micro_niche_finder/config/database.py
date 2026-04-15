@@ -6,6 +6,17 @@ from micro_niche_finder.config.settings import get_settings
 
 settings = get_settings()
 
-engine = create_engine(settings.database_url, future=True)
+connect_args = {}
+if settings.database_url.startswith("sqlite"):
+    connect_args = {
+        "timeout": 30,
+        "check_same_thread": False,
+    }
+
+engine = create_engine(
+    settings.database_url,
+    future=True,
+    connect_args=connect_args,
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 Base = declarative_base()

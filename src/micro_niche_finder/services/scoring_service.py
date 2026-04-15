@@ -9,15 +9,15 @@ from micro_niche_finder.services.public_data_opportunity_service import PublicDa
 
 @dataclass(frozen=True, slots=True)
 class ScoreWeights:
-    repeated_pain: float = 0.17
-    problem_intensity: float = 0.14
-    payment_likelihood: float = 0.12
-    online_demand: float = 0.15
-    market_size_sufficiency: float = 0.10
-    online_gtm_efficiency: float = 0.12
+    repeated_pain: float = 0.15
+    problem_intensity: float = 0.12
+    payment_likelihood: float = 0.11
+    online_demand: float = 0.18
+    market_size_sufficiency: float = 0.09
+    online_gtm_efficiency: float = 0.15
     market_size_ceiling: float = 0.10
-    competitive_whitespace: float = 0.06
-    keyword_difficulty: float = 0.08
+    competitive_whitespace: float = 0.05
+    keyword_difficulty: float = 0.10
     implementation_feasibility: float = 0.04
 
 
@@ -96,7 +96,9 @@ class ScoringService:
     def _payment_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
         prior = self._fit_score(candidate.payment_likelihood)
         evidence = max(0.0, min(1.0, features.payability_score))
-        return max(0.0, min(1.0, (prior * 0.55) + (evidence * 0.45)))
+        decision_maker = self._fit_score(candidate.decision_maker_clarity)
+        current_spend = self._current_spend_signal(candidate)
+        return max(0.0, min(1.0, (prior * 0.45) + (evidence * 0.3) + (decision_maker * 0.15) + (current_spend * 0.1)))
 
     def _problem_intensity(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
         pain_text = f"{candidate.job_to_be_done} {candidate.pain}".lower()
@@ -105,16 +107,18 @@ class ScoringService:
             if marker in pain_text:
                 intensity += 0.08
         intensity += self._manual_workaround_signal(candidate) * 0.08
+        intensity += self._quantified_loss_signal(candidate) * 0.12
         intensity += min(0.18, features.commercial_intent_ratio * 0.18)
         return min(intensity, 1.0)
 
     def _online_demand_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
-        score = features.online_demand_score * 0.6
-        score += features.absolute_demand_score * 0.2
-        score += self._fit_score(candidate.market_size_confidence) * 0.05
+        score = features.online_demand_score * 0.45
+        score += features.absolute_demand_score * 0.3
+        score += self._fit_score(candidate.market_size_confidence) * 0.04
         score += min(1.0, len(candidate.query_candidates) / 4) * 0.05
-        score += self._fit_score(candidate.online_gtm_fit) * 0.05
+        score += self._fit_score(candidate.online_gtm_fit) * 0.06
         score += features.commercial_intent_ratio * 0.1
+        score += self._trackable_acquisition_signal(candidate) * 0.05
         return max(0.0, min(1.0, score))
 
     def _market_size_sufficiency_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
@@ -125,9 +129,13 @@ class ScoringService:
 
     def _online_gtm_efficiency_score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> float:
         channels = min(1.0, len(candidate.online_acquisition_channels) / 3)
-        score = features.online_gtm_efficiency_score * 0.7
-        score += self._fit_score(candidate.online_gtm_fit) * 0.2
-        score += channels * 0.1
+        trackable = self._trackable_acquisition_signal(candidate)
+        score = features.online_gtm_efficiency_score * 0.45
+        score += self._fit_score(candidate.online_gtm_fit) * 0.15
+        score += channels * 0.05
+        score += trackable * 0.15
+        score += features.absolute_demand_score * 0.1
+        score += (1.0 - features.keyword_difficulty_score) * 0.1
         return max(0.0, min(1.0, score))
 
     def _market_size_ceiling_score(self, features: TrendFeatureSet) -> float:
@@ -144,6 +152,8 @@ class ScoringService:
         fit += features.problem_specificity * 0.15
         fit += self._solo_builder_bonus(candidate) * 0.18
         fit += self._public_data_leverage(candidate) * 0.08
+        fit += self._fit_score(candidate.manual_first_viability) * 0.12
+        fit += self._fit_score(candidate.integration_lightness) * 0.12
         fit -= features.brand_dependency_score * 0.15
         fit -= self._broad_scope_signal(candidate) * 0.18
         if "regulation_risk" in candidate.risk_flags:
@@ -172,7 +182,13 @@ class ScoringService:
             penalties += 0.04
         if features.online_demand_score < 0.3:
             penalties += 0.1
+        if features.absolute_demand_score < 0.25:
+            penalties += 0.12
+        elif features.absolute_demand_score < 0.4:
+            penalties += 0.06
         if features.online_gtm_efficiency_score < 0.25:
+            penalties += 0.08
+        if self._trackable_acquisition_signal(candidate) < 0.35:
             penalties += 0.08
         if features.market_size_ceiling_score < 0.3:
             penalties += 0.1
@@ -188,6 +204,28 @@ class ScoringService:
         text = " ".join(candidate.current_workaround + [candidate.job_to_be_done, candidate.pain]).lower()
         hits = sum(1 for marker in markers if marker in text)
         return min(1.0, hits / 3)
+
+    def _quantified_loss_signal(self, candidate: ProblemCandidateGenerated) -> float:
+        text = f"{candidate.quantified_loss} {candidate.pain}".lower()
+        markers = ("시간", "분", "시간씩", "매출", "손실", "누락", "노쇼", "이탈", "미수금", "건", "주당", "매일", "월")
+        hits = sum(1 for marker in markers if marker in text)
+        has_digit = any(char.isdigit() for char in text)
+        base = min(1.0, hits / 4)
+        if has_digit:
+            base = min(1.0, base + 0.2)
+        return base
+
+    def _current_spend_signal(self, candidate: ProblemCandidateGenerated) -> float:
+        text = f"{candidate.current_spend} {' '.join(candidate.current_workaround)}".lower()
+        markers = ("엑셀", "알바", "직원", "시간", "외주", "수기", "카톡", "문자", "전화", "월", "비용", "대행")
+        hits = sum(1 for marker in markers if marker in text)
+        return min(1.0, hits / 4)
+
+    def _trackable_acquisition_signal(self, candidate: ProblemCandidateGenerated) -> float:
+        text = " ".join(candidate.online_acquisition_channels).lower()
+        markers = ("검색", "광고", "seo", "블로그", "콘텐츠", "유튜브", "카페", "커뮤니티", "랜딩")
+        hits = sum(1 for marker in markers if marker in text)
+        return min(1.0, hits / 4)
 
     def _solo_builder_bonus(self, candidate: ProblemCandidateGenerated) -> float:
         text = " ".join(

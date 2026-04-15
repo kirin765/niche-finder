@@ -26,6 +26,7 @@ from micro_niche_finder.services.collection_scheduler_service import CollectionS
 from micro_niche_finder.services.clustering_service import QueryClusteringService
 from micro_niche_finder.services.datalab_service import NaverDataLabService
 from micro_niche_finder.services.feature_service import FeatureExtractionService
+from micro_niche_finder.services.brainstorming_v2_service import BrainstormingCandidateV2, BrainstormingV2Service
 from micro_niche_finder.services.google_search_service import GoogleSearchService
 from micro_niche_finder.services.kosis_employee_service import KosisEmployeeService
 from micro_niche_finder.services.llm_service import OpenAIResearchService
@@ -56,6 +57,7 @@ class PipelineService:
         collection_scheduler_service: CollectionSchedulerService,
         scoring_service: ScoringService,
         report_service: ReportService,
+        brainstorming_v2_service: BrainstormingV2Service | None = None,
     ) -> None:
         self.llm_service = llm_service
         self.datalab_service = datalab_service
@@ -71,6 +73,7 @@ class PipelineService:
         self.collection_scheduler_service = collection_scheduler_service
         self.scoring_service = scoring_service
         self.report_service = report_service
+        self.brainstorming_v2_service = brainstorming_v2_service
 
     def run(
         self,
@@ -101,7 +104,7 @@ class PipelineService:
             else []
         )
 
-        scored_payloads: list[tuple[float, int, FinalAnalysisInput]] = []
+        scored_payloads: list[tuple[float, int, int, str, FinalAnalysisInput]] = []
         for index, candidate in enumerate(generated.candidates):
             candidate_entity = candidate_repo.create(
                 seed_category_id=seed.id,
@@ -535,35 +538,70 @@ class PipelineService:
             )
             candidate_entity.status = CandidateStatus.SCORED.value
 
-            scored_payloads.append(
-                (
-                    breakdown.final_score,
-                    candidate_entity.id,
-                    FinalAnalysisInput(
-                        canonical_name=group.canonical_name,
-                        persona=candidate.persona,
-                        problem_summary=candidate.pain,
-                        query_group=group.queries,
-                        features=features,
-                        score_breakdown=breakdown,
-                        risk_flags=candidate.risk_flags,
-                        market_size_context=market_size_context,
-                        search_evidence_context=search_evidence_context,
-                        absolute_demand_context=absolute_demand_context,
-                        shopping_evidence_context=shopping_evidence_context,
-                        public_data_context=public_data_context,
-                        online_gtm_context=online_gtm_context,
-                        pricing_evidence_context=pricing_evidence_context,
-                    ),
-                )
+            analysis_input = FinalAnalysisInput(
+                canonical_name=group.canonical_name,
+                persona=candidate.persona,
+                buyer=candidate.buyer,
+                problem_summary=candidate.pain,
+                quantified_loss=candidate.quantified_loss,
+                current_spend=candidate.current_spend,
+                decision_maker_clarity=candidate.decision_maker_clarity,
+                manual_first_viability=candidate.manual_first_viability,
+                integration_lightness=candidate.integration_lightness,
+                query_group=group.queries,
+                features=features,
+                score_breakdown=breakdown,
+                risk_flags=candidate.risk_flags,
+                market_size_context=market_size_context,
+                search_evidence_context=search_evidence_context,
+                absolute_demand_context=absolute_demand_context,
+                shopping_evidence_context=shopping_evidence_context,
+                public_data_context=public_data_context,
+                online_gtm_context=online_gtm_context,
+                pricing_evidence_context=pricing_evidence_context,
             )
+            scored_payloads.append((breakdown.final_score, candidate_entity.id, seed.id, seed.name, analysis_input))
 
         scored_payloads.sort(key=lambda item: item[0], reverse=True)
+        ranked_candidates: list[BrainstormingCandidateV2] = []
+        if self.brainstorming_v2_service is not None:
+            ranked_candidates = self.brainstorming_v2_service.rank_candidates(
+                session=session,
+                scored_payloads=scored_payloads,
+            )
         reports = []
-        for priority, (_, candidate_id, analysis_input) in enumerate(scored_payloads[:top_k], start=1):
-            report = build_reports.run(payload=analysis_input, report_service=self.report_service)
+        if ranked_candidates:
+            selected = ranked_candidates[:top_k]
+        else:
+            selected = [
+                BrainstormingCandidateV2(
+                    candidate_id=candidate_id,
+                    seed_id=seed_id,
+                    seed_name=seed_name,
+                    canonical_name=analysis_input.canonical_name,
+                    persona=analysis_input.persona,
+                    problem_summary=analysis_input.problem_summary,
+                    analysis_input=analysis_input,
+                    base_score=round(score, 2),
+                    novelty_score=0.0,
+                    diversity_score=0.0,
+                    evidence_score=0.0,
+                    final_score=round(score, 2),
+                    nearest_similarity=0.0,
+                    nearest_report_name=None,
+                    why_different="기본 점수 순으로 선별했다.",
+                    evidence_summary="",
+                )
+                for score, candidate_id, seed_id, seed_name, analysis_input in scored_payloads[:top_k]
+            ]
+        for priority, candidate in enumerate(selected, start=1):
+            report = (
+                self.brainstorming_v2_service.build_report(candidate)
+                if self.brainstorming_v2_service is not None
+                else build_reports.run(payload=candidate.analysis_input, report_service=self.report_service)
+            )
             score_repo.create_report(
-                problem_candidate_id=candidate_id,
+                problem_candidate_id=candidate.candidate_id,
                 report_json=report.model_dump(mode="json"),
                 recommended_priority=priority,
             )
@@ -575,6 +613,22 @@ class PipelineService:
             scored_candidates=len(scored_payloads),
             reported_candidates=len(reports),
             reports=reports,
+            brainstorming_candidates=[
+                {
+                    "candidate_id": candidate.candidate_id,
+                    "seed_name": candidate.seed_name,
+                    "base_score": candidate.base_score,
+                    "final_score": candidate.final_score,
+                    "novelty_score": candidate.novelty_score,
+                    "diversity_score": candidate.diversity_score,
+                    "evidence_score": candidate.evidence_score,
+                    "nearest_similarity": candidate.nearest_similarity,
+                    "nearest_report_name": candidate.nearest_report_name,
+                    "why_different": candidate.why_different,
+                    "analysis_input": candidate.analysis_input.model_dump(mode="json"),
+                }
+                for candidate in ranked_candidates
+            ],
         )
 
 

@@ -45,14 +45,20 @@ class ProblemCandidateGenerated(BaseModel):
 
     seed_category: str
     persona: str
+    buyer: str
     job_to_be_done: str
     pain: str
+    quantified_loss: str
+    current_spend: str
     repeat_frequency: RepeatFrequency
     current_workaround: list[str]
     software_fit: FitLevel
     payment_likelihood: FitLevel
     online_gtm_fit: FitLevel
     market_size_confidence: FitLevel
+    decision_maker_clarity: FitLevel
+    manual_first_viability: FitLevel
+    integration_lightness: FitLevel
     risk_flags: list[str]
     query_candidates: list[str]
     online_demand_hypothesis: str
@@ -464,7 +470,13 @@ class ScoreBreakdown(BaseModel):
 class FinalAnalysisInput(BaseModel):
     canonical_name: str
     persona: str
+    buyer: str
     problem_summary: str
+    quantified_loss: str
+    current_spend: str
+    decision_maker_clarity: FitLevel
+    manual_first_viability: FitLevel
+    integration_lightness: FitLevel
     query_group: list[str]
     features: TrendFeatureSet
     score_breakdown: ScoreBreakdown
@@ -481,15 +493,25 @@ class FinalAnalysisInput(BaseModel):
 class FinalAnalysisOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    title: str
     niche_name: str
     persona: str
+    buyer: str
     problem_summary: str
+    core_value_proposition: str
+    landing_page_hook: str
     saas_fit_score: int
     trend_signal_score: int
     payment_likelihood: str
     implementation_feasibility: str
     mvp_idea: list[str]
     go_to_market: list[str]
+    first_10_leads: list[str]
+    interview_questions: list[str]
+    manual_first_offer: list[str]
+    price_test: list[str]
+    must_have_scope: list[str]
+    must_not_build_scope: list[str]
     online_demand_summary: str
     market_size_summary: str
     market_size_sufficiency_summary: str
@@ -498,6 +520,8 @@ class FinalAnalysisOutput(BaseModel):
     public_data_summary: str
     online_gtm_summary: str
     recommended_online_channels: list[str]
+    validation_plan: list[str]
+    kill_criteria: list[str]
     risk_flags: list[str]
     recommended_priority: int
 
@@ -514,6 +538,7 @@ class PipelineRunResponse(BaseModel):
     scored_candidates: int
     reported_candidates: int
     reports: list[FinalAnalysisOutput]
+    brainstorming_candidates: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class FinalReportRead(BaseModel):
@@ -524,3 +549,74 @@ class FinalReportRead(BaseModel):
     recommended_priority: int
     report_json: dict[str, Any]
     created_at: datetime
+
+
+class SignalEventCreate(BaseModel):
+    source_type: str
+    source_key: str | None = None
+    raw_text: str
+    normalized_text: str | None = None
+    url: str | None = None
+    title: str | None = None
+    snippet: str | None = None
+    query: str | None = None
+    domain: str | None = None
+    industry_hint: str | None = None
+    persona_hint: str | None = None
+    workflow_hint: str | None = None
+    pain_hint: str | None = None
+    commercial_intent_hint: str | None = None
+    metadata_json: dict[str, Any] | None = None
+
+
+class ProblemSignalRead(BaseModel):
+    canonical_problem_phrase: str
+    persona: str | None = None
+    workflow: str | None = None
+    pain_type: str | None = None
+    urgency_score: float = 0.5
+    repetition_score: float = 0.5
+    operational_friction_score: float = 0.5
+    evidence_strength_score: float = 0.5
+    metadata_json: dict[str, Any] | None = None
+
+
+class ProblemClusterRead(BaseModel):
+    id: int
+    canonical_name: str
+    persona: str | None = None
+    workflow: str | None = None
+    pain_summary: str | None = None
+    representative_queries_json: list[str] = Field(default_factory=list)
+    cluster_size: int = 0
+    semantic_centroid_text: str | None = None
+    metadata_json: dict[str, Any] | None = None
+
+
+class IdeaCandidateV2Read(BaseModel):
+    id: int
+    problem_cluster_id: int
+    niche_name: str
+    persona: str
+    job_to_be_done: str
+    pain_summary: str
+    product_wedge: str | None = None
+    mvp_idea_json: list[str] = Field(default_factory=list)
+    go_to_market_json: list[str] = Field(default_factory=list)
+
+
+class IdeaScoreV2Breakdown(BaseModel):
+    demand_score: float
+    payability_score: float
+    feasibility_score: float
+    market_size_score: float
+    competition_whitespace_score: float
+    novelty_score: float
+    diversity_score: float
+    micro_revenue_viability_score: float
+    manual_first_viability_score: float
+    simple_marketing_score: float
+    guaranteed_traffic_score: float
+    seo_advantage_score: float
+    final_score: float
+    reasoning_json: dict[str, Any] = Field(default_factory=dict)

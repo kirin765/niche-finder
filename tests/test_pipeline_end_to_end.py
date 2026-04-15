@@ -5,6 +5,7 @@ from micro_niche_finder.config.database import Base
 from micro_niche_finder.config.settings import get_settings
 from micro_niche_finder.domain.models import FinalReport, NicheScore, QueryGroup, SeedCategory
 from micro_niche_finder.jobs.pipeline import PipelineService
+from micro_niche_finder.services.brainstorming_v2_service import BrainstormingV2Service
 from micro_niche_finder.services.clustering_service import QueryClusteringService
 from micro_niche_finder.services.collection_scheduler_service import CollectionSchedulerService
 from micro_niche_finder.services.datalab_service import NaverDataLabService
@@ -52,6 +53,7 @@ def test_pipeline_end_to_end_generates_reports_with_mocked_services(monkeypatch)
 
     llm_service = OpenAIResearchService()
     google_search_service = GoogleSearchService()
+    report_service = ReportService(llm_service=llm_service)
     pipeline = PipelineService(
         llm_service=llm_service,
         datalab_service=NaverDataLabService(),
@@ -66,7 +68,8 @@ def test_pipeline_end_to_end_generates_reports_with_mocked_services(monkeypatch)
         feature_service=FeatureExtractionService(),
         collection_scheduler_service=CollectionSchedulerService(),
         scoring_service=ScoringService(),
-        report_service=ReportService(llm_service=llm_service),
+        report_service=report_service,
+        brainstorming_v2_service=BrainstormingV2Service(report_service=report_service),
     )
 
     result = pipeline.run(session=session, seed_category_id=seed.id, candidate_count=5, top_k=2)
@@ -76,8 +79,17 @@ def test_pipeline_end_to_end_generates_reports_with_mocked_services(monkeypatch)
     assert result.scored_candidates == 5
     assert result.reported_candidates == 2
     assert len(result.reports) == 2
+    assert result.reports[0].title
     assert result.reports[0].niche_name
+    assert result.reports[0].core_value_proposition
+    assert result.reports[0].landing_page_hook
+    assert result.reports[0].first_10_leads
+    assert result.reports[0].interview_questions
+    assert result.reports[0].manual_first_offer
+    assert result.reports[0].price_test
+    assert result.reports[0].validation_plan
+    assert result.reports[0].kill_criteria
+    assert result.brainstorming_candidates
     assert session.scalar(select(QueryGroup.id)) is not None
     assert session.scalar(select(NicheScore.id)) is not None
     assert session.scalar(select(FinalReport.id)) is not None
-

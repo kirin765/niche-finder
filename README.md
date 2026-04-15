@@ -92,6 +92,10 @@ The core pipeline lives in `src/micro_niche_finder/jobs/pipeline.py`.
      - niche summary
      - MVP idea
      - go-to-market suggestions
+     - landing-page positioning hook
+     - first 10 lead targets
+     - interview questions / validation plan
+     - manual-first offer and pricing test
      - market-size summary
      - search evidence summary
      - shopping evidence summary
@@ -499,41 +503,6 @@ Current evidence summary fields:
 - `shopping_evidence_summary`
 - `public_data_summary`
 
-## Daily report automation
-
-The project can generate a **daily report digest** from the current seed set and deliver it to Telegram, Gmail, or both.
-
-How it works:
-
-1. load the newest seed categories up to `DAILY_REPORT_SEED_LIMIT`
-2. run the normal niche pipeline for each seed
-3. keep the top report for each seed
-4. format a compact daily digest
-5. send it to every configured delivery channel
-
-Main settings:
-
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-- `GMAIL_SMTP_HOST`
-- `GMAIL_SMTP_PORT`
-- `GMAIL_USERNAME`
-- `GMAIL_APP_PASSWORD`
-- `GMAIL_FROM_EMAIL`
-- `GMAIL_TO_EMAILS`
-- `DAILY_REPORT_TIMEZONE`
-- `DAILY_REPORT_HOUR`
-- `DAILY_REPORT_MINUTE`
-- `DAILY_REPORT_SEED_LIMIT`
-- `DAILY_REPORT_CANDIDATE_COUNT`
-- `DAILY_REPORT_TOP_K_PER_SEED`
-
-Manual run:
-
-```bash
-python -m apps.worker.run_daily_report
-```
-
 ## Repo structure
 
 - `apps/api`: FastAPI app and HTTP routes
@@ -623,6 +592,8 @@ python scripts/bootstrap_collection_schedules.py
 python -m apps.worker.bootstrap_auto_seeds --seed-count 5 --candidate-count 5 --top-k 3
 ```
 
+This is the periodic batch entrypoint for automated report generation. It discovers fresh seed categories, runs the pipeline for each seed, and persists the resulting reports.
+
 ### Run one Naver DataLab collector cycle
 
 ```bash
@@ -651,12 +622,6 @@ python -m apps.worker.run_naver_shopping_insight_collector
 
 ```bash
 python -m apps.worker.run_kosis_collector --max-calls 3
-```
-
-### Run one daily report cycle
-
-```bash
-python -m apps.worker.run_daily_report
 ```
 
 ## Budgeting model
@@ -707,7 +672,7 @@ Main groups of environment variables:
   - `COLLECTOR_INTERVAL_MINUTES`
   - `COLLECTOR_SCHEDULE_CADENCE_MINUTES`
   - `COLLECTOR_DEFAULT_PRIORITY`
-- **Telegram / Gmail / daily reports**
+- **Telegram / Gmail**
   - `TELEGRAM_BOT_TOKEN`
   - `TELEGRAM_CHAT_ID`
   - `GMAIL_SMTP_HOST`
@@ -716,12 +681,6 @@ Main groups of environment variables:
   - `GMAIL_APP_PASSWORD`
   - `GMAIL_FROM_EMAIL`
   - `GMAIL_TO_EMAILS`
-  - `DAILY_REPORT_TIMEZONE`
-  - `DAILY_REPORT_HOUR`
-  - `DAILY_REPORT_MINUTE`
-  - `DAILY_REPORT_SEED_LIMIT`
-  - `DAILY_REPORT_CANDIDATE_COUNT`
-  - `DAILY_REPORT_TOP_K_PER_SEED`
 
 See `.env.example` for a fuller example.
 

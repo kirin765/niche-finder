@@ -173,3 +173,122 @@ class ApiUsageCounter(Base):
     calls_made: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class SignalEvent(Base):
+    __tablename__ = "signal_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    query: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    industry_hint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    persona_hint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    workflow_hint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pain_hint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    commercial_intent_hint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class ProblemSignal(Base):
+    __tablename__ = "problem_signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    signal_event_id: Mapped[int] = mapped_column(ForeignKey("signal_events.id"), nullable=False)
+    canonical_problem_phrase: Mapped[str] = mapped_column(Text, nullable=False)
+    persona: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    workflow: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pain_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    urgency_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    repetition_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    operational_friction_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    evidence_strength_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class ProblemCluster(Base):
+    __tablename__ = "problem_clusters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canonical_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    persona: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    workflow: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pain_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    representative_queries_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    cluster_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    semantic_centroid_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class ClusterMember(Base):
+    __tablename__ = "cluster_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    problem_cluster_id: Mapped[int] = mapped_column(ForeignKey("problem_clusters.id"), nullable=False)
+    problem_signal_id: Mapped[int] = mapped_column(ForeignKey("problem_signals.id"), nullable=False)
+    similarity_score: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class IdeaCandidateV2(Base):
+    __tablename__ = "idea_candidates_v2"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    problem_cluster_id: Mapped[int] = mapped_column(ForeignKey("problem_clusters.id"), nullable=False)
+    niche_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    persona: Mapped[str] = mapped_column(String(255), nullable=False)
+    job_to_be_done: Mapped[str] = mapped_column(Text, nullable=False)
+    pain_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    product_wedge: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mvp_idea_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    go_to_market_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    novelty_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class EvidencePacket(Base):
+    __tablename__ = "evidence_packets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    idea_candidate_id: Mapped[int] = mapped_column(ForeignKey("idea_candidates_v2.id"), nullable=False)
+    search_evidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    market_size_evidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    pricing_evidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    competition_evidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    community_evidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    public_data_evidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    confidence_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class IdeaScoreV2(Base):
+    __tablename__ = "idea_scores_v2"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    idea_candidate_id: Mapped[int] = mapped_column(ForeignKey("idea_candidates_v2.id"), nullable=False)
+    demand_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    payability_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    feasibility_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    market_size_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    competition_whitespace_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    novelty_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    diversity_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    micro_revenue_viability_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    manual_first_viability_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    simple_marketing_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    guaranteed_traffic_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    seo_advantage_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    final_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    reasoning_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

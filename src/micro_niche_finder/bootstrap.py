@@ -2,15 +2,16 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from micro_niche_finder.jobs.pipeline import PipelineService
+from micro_niche_finder.services.brainstorming_v2_service import BrainstormingV2Service
 from micro_niche_finder.services.budget_allocator_service import BudgetAllocatorService
 from micro_niche_finder.services.collection_scheduler_service import CollectionSchedulerService
 from micro_niche_finder.services.collector_service import CollectorService
 from micro_niche_finder.services.clustering_service import QueryClusteringService
 from micro_niche_finder.services.datalab_service import NaverDataLabService
-from micro_niche_finder.services.daily_report_service import DailyReportService
 from micro_niche_finder.services.feature_service import FeatureExtractionService
 from micro_niche_finder.services.gmail_service import GmailService
 from micro_niche_finder.services.google_collector_service import GoogleCollectorService
+from micro_niche_finder.services.improvement_discovery_service import ImprovementDiscoveryService
 from micro_niche_finder.services.google_search_service import GoogleSearchService
 from micro_niche_finder.services.kosis_collector_service import KosisCollectorService
 from micro_niche_finder.services.kosis_employee_service import KosisEmployeeService
@@ -26,6 +27,7 @@ from micro_niche_finder.services.pricing_evidence_service import PricingEvidence
 from micro_niche_finder.services.public_data_opportunity_service import PublicDataOpportunityService
 from micro_niche_finder.services.report_service import ReportService
 from micro_niche_finder.services.scoring_service import ScoringService
+from micro_niche_finder.services.seedless_v2_service import SeedlessV2Service
 from micro_niche_finder.services.telegram_service import TelegramService
 
 
@@ -54,7 +56,9 @@ class ApplicationContainer:
     pipeline_service: PipelineService
     telegram_service: TelegramService
     gmail_service: GmailService
-    daily_report_service: DailyReportService
+    brainstorming_v2_service: BrainstormingV2Service
+    improvement_discovery_service: ImprovementDiscoveryService
+    seedless_v2_service: SeedlessV2Service
 
 
 @lru_cache(maxsize=1)
@@ -98,6 +102,7 @@ def get_container() -> ApplicationContainer:
     )
     scoring_service = ScoringService()
     report_service = ReportService(llm_service=llm_service)
+    brainstorming_v2_service = BrainstormingV2Service(report_service=report_service)
     pipeline_service = PipelineService(
         llm_service=llm_service,
         datalab_service=datalab_service,
@@ -113,11 +118,18 @@ def get_container() -> ApplicationContainer:
         collection_scheduler_service=collection_scheduler_service,
         scoring_service=scoring_service,
         report_service=report_service,
+        brainstorming_v2_service=brainstorming_v2_service,
     )
-    daily_report_service = DailyReportService(
-        pipeline_service=pipeline_service,
+    improvement_discovery_service = ImprovementDiscoveryService(
+        google_search_service=google_search_service,
         telegram_service=telegram_service,
-        gmail_service=gmail_service,
+    )
+    seedless_v2_service = SeedlessV2Service(
+        naver_search_service=naver_search_service,
+        google_search_service=google_search_service,
+        pricing_evidence_service=pricing_evidence_service,
+        public_data_opportunity_service=public_data_opportunity_service,
+        telegram_service=telegram_service,
     )
     return ApplicationContainer(
         llm_service=llm_service,
@@ -143,5 +155,7 @@ def get_container() -> ApplicationContainer:
         pipeline_service=pipeline_service,
         telegram_service=telegram_service,
         gmail_service=gmail_service,
-        daily_report_service=daily_report_service,
+        brainstorming_v2_service=brainstorming_v2_service,
+        improvement_discovery_service=improvement_discovery_service,
+        seedless_v2_service=seedless_v2_service,
     )
