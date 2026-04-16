@@ -59,6 +59,7 @@ sudo cp deploy/systemd/micro-niche-kosis-collector.service /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-kosis-collector.timer /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-auto-seeds.service /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-auto-seeds.timer /etc/systemd/system/
+sudo cp deploy/systemd/repro-suspend-after-periodic.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now micro-niche-api.service
 sudo systemctl enable --now micro-niche-collector.timer
@@ -84,6 +85,7 @@ sudo systemctl enable --now micro-niche-auto-seeds.timer
 - `micro-niche-kosis-collector.service`: samples KOSIS employee-count data for mapped industries.
 - `micro-niche-auto-seeds.timer`: runs seed discovery and report generation every 8 hours.
 - `micro-niche-auto-seeds.service`: generates new seed categories, runs the pipeline, sends a Telegram summary, and writes a markdown copy under `llm-wiki/raw` inside the repository checkout.
+- `repro-suspend-after-periodic.service`: retries suspend after a periodic job finishes until the system actually becomes idle enough to suspend.
 
 ## Manual checks
 

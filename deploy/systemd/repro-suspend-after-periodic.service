@@ -1,0 +1,11 @@
+[Unit]
+Description=Retry suspend after periodic jobs finish
+Documentation=man:systemctl(1)
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/micro-niche-finder
+EnvironmentFile=/opt/micro-niche-finder/.env
+ExecStart=/opt/micro-niche-finder/.venv/bin/python -m apps.worker.run_suspend_watchdog --initial-delay-sec 120 --poll-interval-sec 60 --max-wait-sec 1800
