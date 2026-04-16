@@ -12,6 +12,8 @@ SYSTEM_BLOCKING_UNITS = (
     "japantravel-content-cycle.service",
 )
 
+WATCHDOG_UNIT = "repro-suspend-after-periodic.service"
+
 USER_BLOCKING_UNITS = (
     "shorts-upload.service",
     "shorts-maker-history-upload.service",
@@ -43,11 +45,15 @@ def _nonempty_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+def _exclude_watchdog_job(lines: list[str]) -> list[str]:
+    return [line for line in lines if WATCHDOG_UNIT not in line]
+
+
 def _list_jobs(command: list[str], *, env: dict[str, str] | None = None) -> list[str]:
     result = _run(command, env=env)
     if result.returncode != 0:
         return []
-    return _nonempty_lines(result.stdout)
+    return _exclude_watchdog_job(_nonempty_lines(result.stdout))
 
 
 def _active_units(units: tuple[str, ...], *, env: dict[str, str] | None = None) -> list[str]:

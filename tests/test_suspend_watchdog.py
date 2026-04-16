@@ -1,4 +1,4 @@
-from apps.worker.run_suspend_watchdog import WatchdogSnapshot, _summarize_blockers
+from apps.worker.run_suspend_watchdog import WatchdogSnapshot, _exclude_watchdog_job, _summarize_blockers
 
 
 def test_summarize_blockers_includes_all_active_sources() -> None:
@@ -34,3 +34,12 @@ def test_summarize_blockers_empty_when_idle() -> None:
     blockers = _summarize_blockers(snapshot)
 
     assert blockers == []
+
+
+def test_exclude_watchdog_job_filters_only_own_unit() -> None:
+    lines = [
+        "88887 repro-suspend-after-periodic.service start running",
+        "88888 micro-niche-collector.service start waiting",
+    ]
+
+    assert _exclude_watchdog_job(lines) == ["88888 micro-niche-collector.service start waiting"]
