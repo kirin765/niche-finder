@@ -8,4 +8,4 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/opt/micro-niche-finder
 EnvironmentFile=/etc/micro-niche-finder.env
-ExecStart=/opt/micro-niche-finder/.venv/bin/python -m apps.worker.run_kosis_collector
+ExecStart=/usr/bin/flock /tmp/micro-niche-finder-db.lock /opt/micro-niche-finder/.venv/bin/python -m apps.worker.run_kosis_collector

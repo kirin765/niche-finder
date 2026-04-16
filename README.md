@@ -152,6 +152,8 @@ It is helpful when:
 - the niche overlaps with broader web or SaaS patterns
 - competitor and content evidence should be cross-checked against a non-Naver index
 
+Brave usage is capped at `BRAVE_SEARCH_MONTHLY_LIMIT` calls per month. The default is `1000`.
+
 ### 5. Naver Shopping Insight API
 
 Used **selectively**, not globally.
@@ -522,7 +524,7 @@ Current evidence summary fields:
 - FastAPI
 - SQLAlchemy
 - Alembic
-- SQLite or PostgreSQL
+- PostgreSQL, with SQLite only for tests
 - OpenAI Responses API
 
 ## Quick start
@@ -589,10 +591,10 @@ python scripts/bootstrap_collection_schedules.py
 ### Auto-generate seed categories and run pipelines
 
 ```bash
-python -m apps.worker.bootstrap_auto_seeds --seed-count 5 --candidate-count 5 --top-k 3
+python -m apps.worker.bootstrap_auto_seeds --seed-count 1 --candidate-count 1 --top-k 1 --evidence-mode minimal --log-detail summary
 ```
 
-This is the periodic batch entrypoint for automated report generation. It discovers fresh seed categories, runs the pipeline for each seed, and persists the resulting reports.
+This is the periodic batch entrypoint for automated report generation. It discovers fresh seed categories, runs the pipeline for each seed, and persists the resulting reports. Use `--evidence-mode full` for the richest evidence pass, or `--evidence-mode minimal` for the fastest scheduled run.
 
 ### Run one Naver DataLab collector cycle
 
@@ -651,6 +653,7 @@ Main groups of environment variables:
   - `OPENAI_FINAL_MODEL`
 - **Brave Search**
   - `BRAVE_SEARCH_API_KEY`
+  - `BRAVE_SEARCH_MONTHLY_LIMIT`
 - **Naver DataLab**
   - `NAVER_DATALAB_CLIENT_ID`
   - `NAVER_DATALAB_CLIENT_SECRET`

@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     app_name: str = Field(default="Micro Niche Finder", alias="APP_NAME")
     app_env: str = Field(default="local", alias="APP_ENV")
     app_debug: bool = Field(default=False, alias="APP_DEBUG")
-    database_url: str = Field(default="sqlite:///./micro_niche_finder.db", alias="DATABASE_URL")
+    database_url: str = Field(default="postgresql+psycopg://postgres:postgres@localhost:5432/micro_niche_finder", alias="DATABASE_URL")
 
     llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")
     codex_bin: str = Field(default="codex", alias="CODEX_BIN")
@@ -29,6 +29,7 @@ class Settings(BaseSettings):
         alias="BRAVE_SEARCH_BASE_URL",
     )
     brave_search_daily_limit: int = Field(default=100, alias="BRAVE_SEARCH_DAILY_LIMIT")
+    brave_search_monthly_limit: int = Field(default=1000, alias="BRAVE_SEARCH_MONTHLY_LIMIT")
 
     kosis_api_key: str | None = Field(default=None, alias="KOSIS_API_KEY")
     kosis_base_url: str = Field(
@@ -87,7 +88,7 @@ class Settings(BaseSettings):
     gmail_app_password: str | None = Field(default=None, alias="GMAIL_APP_PASSWORD")
     gmail_from_email: str | None = Field(default=None, alias="GMAIL_FROM_EMAIL")
     gmail_to_emails: str | None = Field(default=None, alias="GMAIL_TO_EMAILS")
-    collector_interval_minutes: int = Field(default=15, alias="COLLECTOR_INTERVAL_MINUTES")
+    collector_interval_minutes: int = Field(default=30, alias="COLLECTOR_INTERVAL_MINUTES")
     collector_schedule_cadence_minutes: int = Field(default=180, alias="COLLECTOR_SCHEDULE_CADENCE_MINUTES")
     collector_default_priority: int = Field(default=100, alias="COLLECTOR_DEFAULT_PRIORITY")
     top_candidate_analysis_count: int = Field(default=10, alias="TOP_CANDIDATE_ANALYSIS_COUNT")

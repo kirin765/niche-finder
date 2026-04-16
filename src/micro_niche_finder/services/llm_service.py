@@ -64,23 +64,38 @@ class OpenAIResearchService:
         )
         return CandidateGenerationResult(candidates=payload.candidates)
 
-    def generate_seed_categories(self, seed_count: int) -> SeedCategoryDiscoveryResult:
+    def generate_seed_categories(
+        self,
+        seed_count: int,
+        *,
+        existing_seed_names: list[str] | None = None,
+    ) -> SeedCategoryDiscoveryResult:
         system_prompt = self._load_prompt("seed_generation.md")
+        avoided_seed_names = self._normalize_seed_names(existing_seed_names or [])
+        avoidance_block = ""
+        if avoided_seed_names:
+            avoidance_block = (
+                "Avoid duplicating or closely paraphrasing these existing seed categories:\n"
+                + "\n".join(f"- {name}" for name in avoided_seed_names[:40])
+                + "\n"
+            )
         user_prompt = (
             f"Seed count target: {seed_count}\n"
             "Goal: find diverse Korean operational domains where recurring, software-solvable pain points are likely.\n"
             "Avoid celebrity/news/trend topics and prefer durable small-business workflows.\n"
-            "Constraint: return only vertical-market seeds, not horizontal software categories."
+            "Constraint: return only vertical-market seeds, not horizontal software categories.\n"
+            f"{avoidance_block}"
         )
         if self.provider == "openai" and not self.settings.openai_api_key:
-            return self._mock_seed_categories(seed_count)
+            return self._mock_seed_categories(seed_count, excluded_seed_names=avoided_seed_names)
         payload = self._structured_response(
             model=self._candidate_model(),
             instructions=system_prompt,
             user_prompt=user_prompt,
             schema=SeedCategoryDiscoveryPayload,
         )
-        return SeedCategoryDiscoveryResult(seeds=payload.seeds)
+        filtered = self._filter_seed_suggestions(payload.seeds, excluded_seed_names=avoided_seed_names)
+        return SeedCategoryDiscoveryResult(seeds=filtered[:seed_count])
 
     def analyze_top_candidate(self, payload: FinalAnalysisInput) -> FinalAnalysisOutput:
         system_prompt = self._load_prompt("final_analysis.md")
@@ -443,7 +458,12 @@ class OpenAIResearchService:
             rationale=f"{chosen.label} 카테고리가 상품 판매 맥락과 가장 가깝다.",
         )
 
-    def _mock_seed_categories(self, seed_count: int) -> SeedCategoryDiscoveryResult:
+    def _mock_seed_categories(
+        self,
+        seed_count: int,
+        *,
+        excluded_seed_names: list[str] | None = None,
+    ) -> SeedCategoryDiscoveryResult:
         canned = [
             {
                 "name": "스마트스토어 운영",
@@ -486,7 +506,47 @@ class OpenAIResearchService:
                 "rationale": "수기 정리 비중이 높고 영업-운영 연결 문제가 빈번해 도구 수요가 있다.",
             },
         ]
-        return SeedCategoryDiscoveryResult.model_validate({"seeds": canned[:seed_count]})
+        excluded = set(self._normalize_seed_names(excluded_seed_names or []))
+        seeds = [item for item in canned if item["name"].strip().lower() not in excluded]
+        return SeedCategoryDiscoveryResult.model_validate({"seeds": seeds[:seed_count]})
+
+    def _filter_seed_suggestions(
+        self,
+        seeds: list[object],
+        *,
+        excluded_seed_names: list[str] | None = None,
+    ) -> list[object]:
+        excluded = set(self._normalize_seed_names(excluded_seed_names or []))
+        filtered = []
+        seen: set[str] = set()
+        for item in seeds:
+            name = self._seed_name(item)
+            if not name:
+                continue
+            normalized = name.strip().lower()
+            if normalized in excluded or normalized in seen:
+                continue
+            seen.add(normalized)
+            filtered.append(item)
+        return filtered
+
+    @staticmethod
+    def _seed_name(item: object) -> str:
+        if isinstance(item, dict):
+            return str(item.get("name") or "")
+        return str(getattr(item, "name", "") or "")
+
+    @staticmethod
+    def _normalize_seed_names(names: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for name in names:
+            cleaned = " ".join((name or "").split()).strip().lower()
+            if not cleaned or cleaned in seen:
+                continue
+            seen.add(cleaned)
+            normalized.append(cleaned)
+        return normalized
 
     def _mock_query_expansion(self, candidate: ProblemCandidateGenerated) -> QueryExpansionResult:
         base_queries = list(dict.fromkeys(candidate.query_candidates))

@@ -1,6 +1,11 @@
 from datetime import datetime
 
-from apps.worker.bootstrap_auto_seeds import _build_raw_markdown, _build_telegram_message, _write_raw_report
+from apps.worker.bootstrap_auto_seeds import (
+    _build_raw_markdown,
+    _build_stdout_payload,
+    _build_telegram_message,
+    _write_raw_report,
+)
 
 
 def _sample_summary() -> list[dict]:
@@ -46,3 +51,18 @@ def test_write_raw_report_persists_markdown(tmp_path) -> None:
     assert path.endswith("auto-seeds-report-20260414-120000.md")
     assert "#### Raw JSON" in written
     assert written == content
+
+
+def test_build_stdout_payload_summary_omits_full_report_payload() -> None:
+    payload = _build_stdout_payload(
+        summaries=_sample_summary(),
+        raw_output_path="llm-wiki/raw/report.md",
+        telegram_chunks=1,
+        telegram_configured=True,
+        duration_seconds=12.345,
+        detail="summary",
+    )
+
+    assert payload["duration_seconds"] == 12.35
+    assert payload["results"][0]["report_titles"] == ["학원 보강 일정 관리 | 소형 학원 원장 운영 기회"]
+    assert "reports" not in payload["results"][0]

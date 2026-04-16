@@ -16,8 +16,16 @@ class PricingEvidenceService:
     def __init__(self, google_search_service: GoogleSearchService) -> None:
         self.google_search_service = google_search_service
 
-    def collect(self, *, canonical_name: str, queries: list[str]) -> PricingEvidenceContext:
+    def collect(
+        self,
+        *,
+        canonical_name: str,
+        queries: list[str],
+        max_search_queries: int = 3,
+        allow_page_fetch: bool = True,
+    ) -> PricingEvidenceContext:
         search_queries = self._build_queries(canonical_name, queries)
+        search_queries = search_queries[: max(0, max_search_queries)]
         price_points: list[int] = []
         pricing_page_count = 0
 
@@ -29,7 +37,7 @@ class PricingEvidenceService:
                 if extracted:
                     price_points.extend(extracted)
                     pricing_page_count += 1
-                elif self._looks_like_pricing_page(item):
+                elif allow_page_fetch and self._looks_like_pricing_page(item):
                     fetched = self._fetch_page_text(item.link)
                     extracted = self._extract_prices_krw(fetched)
                     if extracted:

@@ -60,6 +60,9 @@ class NaverDataLabService:
             response.raise_for_status()
         return DataLabResponse.model_validate(response.json())
 
+    def estimate(self, request: DataLabRequest) -> DataLabResponse:
+        return self._mock_response(request)
+
     def _mock_response(self, request: DataLabRequest) -> DataLabResponse:
         points = []
         current = datetime.combine(request.startDate, datetime.min.time()).date()

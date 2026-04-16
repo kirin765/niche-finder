@@ -37,8 +37,11 @@ For Telegram or Gmail delivery, set the relevant fields if you want bot or email
 cd /opt/micro-niche-finder
 source .venv/bin/activate
 alembic upgrade head
+python scripts/migrate_sqlite_to_postgres.py
 python scripts/bootstrap_collection_schedules.py
 ```
+
+If you are migrating an existing SQLite checkout, run the migration command before switching any long-running services over to PostgreSQL. The script copies the current `micro_niche_finder.db` snapshot into the target `DATABASE_URL`, resets PostgreSQL sequences, and preserves the current Alembic revision marker.
 
 ## systemd
 
@@ -69,7 +72,7 @@ sudo systemctl enable --now micro-niche-auto-seeds.timer
 ## What Runs
 
 - `micro-niche-api.service`: keeps the FastAPI app running.
-- `micro-niche-collector.timer`: wakes the collector every 15 minutes.
+- `micro-niche-collector.timer`: wakes the collector every 30 minutes.
 - `micro-niche-collector.service`: computes the current budget allowance and collects only the due schedules it can afford.
 - `micro-niche-google-collector.timer`: wakes the Google collector every 30 minutes.
 - `micro-niche-google-collector.service`: samples Brave Search queries for cross-source validation.
@@ -79,7 +82,7 @@ sudo systemctl enable --now micro-niche-auto-seeds.timer
 - `micro-niche-naver-shopping-insight-collector.service`: samples Naver shopping-click category trends as supplementary commerce evidence.
 - `micro-niche-kosis-collector.timer`: refreshes KOSIS employee-count market-size references every 6 hours.
 - `micro-niche-kosis-collector.service`: samples KOSIS employee-count data for mapped industries.
-- `micro-niche-auto-seeds.timer`: runs seed discovery and report generation every 6 hours.
+- `micro-niche-auto-seeds.timer`: runs seed discovery and report generation every 8 hours.
 - `micro-niche-auto-seeds.service`: generates new seed categories, runs the pipeline, sends a Telegram summary, and writes a markdown copy under `llm-wiki/raw` inside the repository checkout.
 
 ## Manual checks
@@ -104,7 +107,7 @@ python -m apps.worker.run_google_collector --max-calls 3
 python -m apps.worker.run_naver_search_collector --max-calls 3
 python -m apps.worker.run_naver_shopping_insight_collector
 python -m apps.worker.run_kosis_collector --max-calls 3
-python -m apps.worker.bootstrap_auto_seeds --seed-count 5 --candidate-count 5 --top-k 3 --send-telegram --raw-output-dir llm-wiki/raw
+python -m apps.worker.bootstrap_auto_seeds --seed-count 1 --candidate-count 1 --top-k 1 --evidence-mode minimal --log-detail summary --send-telegram --raw-output-dir llm-wiki/raw
 python -m apps.worker.run_seedless_v2
 ```
 
@@ -112,8 +115,8 @@ python -m apps.worker.run_seedless_v2
 
 - Daily limit defaults to `1000`.
 - The allocator divides remaining calls by the number of remaining timer slots for the day.
-- With a 15-minute timer, the collector tries to consume the daily budget smoothly instead of front-loading all calls.
-- Brave Search has its own daily limit and is treated as a supplementary source, not the primary ranking source.
+- With a 30-minute timer, the collector still spreads the daily budget, but the run frequency is lower and the DB contention risk is smaller.
+- Brave Search has its own monthly hard cap and is treated as a supplementary source, not the primary ranking source.
 - Naver Search is a supplementary demand-evidence source for narrow keyword niches and does not replace trend collection.
 - Naver Shopping Insight is only useful for commerce/product niches, so it is intentionally scheduled selectively instead of for every query group.
 - KOSIS employee-count collection is a supplementary market-size reference and does not change niche scoring by itself.

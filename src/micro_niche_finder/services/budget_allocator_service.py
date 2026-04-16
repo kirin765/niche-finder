@@ -16,10 +16,11 @@ class BudgetAllocatorService:
         calls_made_today: int,
         now: datetime | None = None,
         max_calls: int | None = None,
+        daily_limit: int | None = None,
     ) -> int:
         current = now or datetime.now(timezone.utc)
-        daily_limit = self.settings.naver_datalab_daily_limit
-        remaining_budget = max(0, daily_limit - calls_made_today)
+        limit = daily_limit if daily_limit is not None else self.settings.naver_datalab_daily_limit
+        remaining_budget = max(0, limit - calls_made_today)
         if remaining_budget == 0:
             return 0
 

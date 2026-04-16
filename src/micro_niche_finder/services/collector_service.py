@@ -43,6 +43,7 @@ class CollectorService:
             calls_made_today=counter.calls_made,
             now=now,
             max_calls=max_calls,
+            daily_limit=self.datalab_service.settings.naver_datalab_daily_limit,
         )
         due_schedules = collection_repo.list_due_schedules(source=self.SOURCE, now=now, limit=allowance)
 

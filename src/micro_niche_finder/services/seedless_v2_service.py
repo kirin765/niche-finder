@@ -37,11 +37,8 @@ class SeedlessV2Service:
         "학원 보강 일정 관리",
         "병원 상담 리마인드",
         "네이버 스마트스토어 가격 모니터링",
-        "인테리어 견적 추적",
-        "세무사 자료 요청 관리",
-        "필라테스 노쇼 관리",
-        "반려미용 예약 관리",
     ]
+    PRICING_SEARCH_QUERY_LIMIT = 1
 
     def __init__(
         self,
@@ -188,7 +185,12 @@ class SeedlessV2Service:
                 novelty_hash=self._normalize(niche_name),
             )
 
-            pricing = self.pricing_evidence_service.collect(canonical_name=niche_name, queries=queries or [niche_name])
+            pricing = self.pricing_evidence_service.collect(
+                canonical_name=niche_name,
+                queries=queries or [niche_name],
+                max_search_queries=self.PRICING_SEARCH_QUERY_LIMIT,
+                allow_page_fetch=False,
+            )
             public_data = self.public_data_opportunity_service.analyze(
                 canonical_name=niche_name,
                 persona=persona,

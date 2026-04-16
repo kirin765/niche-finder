@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import httpx
-from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from micro_niche_finder.config.settings import get_settings
 from micro_niche_finder.domain.schemas import GoogleCustomSearchResponse, GoogleSearchRequest, OnlineGTMContext
+from micro_niche_finder.services.brave_usage_budget_service import BraveUsageBudgetService
 from micro_niche_finder.services.search_channel_classifier import SearchChannelClassifier, SearchResultDocument
 
 
@@ -14,19 +14,17 @@ class GoogleSearchService:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.channel_classifier = SearchChannelClassifier()
+        self.brave_usage_budget_service = BraveUsageBudgetService()
         self._runtime_disabled = False
 
     def is_configured(self) -> bool:
         return not self._runtime_disabled and bool(self.settings.brave_search_api_key)
 
-    @retry(
-        wait=wait_exponential(min=1, max=8),
-        stop=stop_after_attempt(3),
-        retry=retry_if_exception(lambda exc: GoogleSearchService._should_retry(exc)),
-        reraise=True,
-    )
     def fetch(self, request: GoogleSearchRequest) -> GoogleCustomSearchResponse:
         if not self.is_configured():
+            return self._mock_response(request)
+
+        if not self.brave_usage_budget_service.consume_monthly_call():
             return self._mock_response(request)
 
         headers = {
@@ -41,14 +39,15 @@ class GoogleSearchService:
             "search_lang": request.hl,
         }
         with httpx.Client(timeout=20.0) as client:
-            response = client.get(self.settings.brave_search_base_url, headers=headers, params=params)
             try:
+                response = client.get(self.settings.brave_search_base_url, headers=headers, params=params)
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                if self._is_permission_error(exc) or self._is_rate_limit_error(exc):
+                if self._is_permission_error(exc) or self._is_rate_limit_error(exc) or self._is_quota_error(exc):
                     self._runtime_disabled = True
-                    return self._mock_response(request)
-                raise
+                return self._mock_response(request)
+            except httpx.HTTPError:
+                return self._mock_response(request)
         return self._transform_brave_response(response.json(), request=request)
 
     def _mock_response(self, request: GoogleSearchRequest) -> GoogleCustomSearchResponse:
@@ -129,7 +128,5 @@ class GoogleSearchService:
         return exc.response.status_code == 429
 
     @staticmethod
-    def _should_retry(exc: Exception) -> bool:
-        if isinstance(exc, httpx.HTTPStatusError):
-            return not GoogleSearchService._is_permission_error(exc)
-        return isinstance(exc, httpx.HTTPError)
+    def _is_quota_error(exc: httpx.HTTPStatusError) -> bool:
+        return exc.response.status_code == 402

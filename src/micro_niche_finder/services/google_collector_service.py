@@ -25,6 +25,17 @@ class GoogleCollectorService:
 
     def run_once(self, *, session: Session, max_calls: int | None = None) -> CollectorRunSummary:
         now = datetime.now(timezone.utc)
+        if not self.google_search_service.is_configured():
+            return CollectorRunSummary(
+                source=self.SOURCE,
+                run_started_at=now,
+                allowance=0,
+                schedules_considered=0,
+                schedules_processed=0,
+                calls_made=0,
+                errors=[],
+            )
+
         collection_repo = CollectionRepository(session)
         trend_repo = TrendRepository(session)
 
@@ -37,7 +48,20 @@ class GoogleCollectorService:
             calls_made_today=counter.calls_made,
             now=now,
             max_calls=max_calls,
+            daily_limit=self.google_search_service.settings.brave_search_daily_limit,
         )
+        monthly_remaining = self.google_search_service.brave_usage_budget_service.remaining_monthly_calls(now=now)
+        allowance = min(allowance, monthly_remaining)
+        if allowance == 0:
+            return CollectorRunSummary(
+                source=self.SOURCE,
+                run_started_at=now,
+                allowance=0,
+                schedules_considered=0,
+                schedules_processed=0,
+                calls_made=0,
+                errors=[],
+            )
         due_schedules = collection_repo.list_due_schedules(source=self.SOURCE, now=now, limit=allowance)
 
         processed = 0

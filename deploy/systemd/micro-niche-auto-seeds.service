@@ -8,4 +8,4 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/opt/micro-niche-finder
 EnvironmentFile=/etc/micro-niche-finder.env
-ExecStart=/opt/micro-niche-finder/.venv/bin/python -m apps.worker.bootstrap_auto_seeds --seed-count 5 --candidate-count 5 --top-k 3 --send-telegram --raw-output-dir llm-wiki/raw
+ExecStart=/usr/bin/flock /tmp/micro-niche-finder-db.lock /usr/bin/env OPENAI_FINAL_MODEL=gpt-5.4-mini OPENAI_REASONING_EFFORT=low OPENAI_TEXT_VERBOSITY=low /opt/micro-niche-finder/.venv/bin/python -m apps.worker.bootstrap_auto_seeds --seed-count 1 --candidate-count 1 --top-k 1 --evidence-mode minimal --log-detail summary --send-telegram --raw-output-dir llm-wiki/raw

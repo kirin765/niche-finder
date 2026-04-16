@@ -13,8 +13,10 @@ from micro_niche_finder.domain.schemas import (
     NaverSearchRequest,
     OnlineGTMContext,
     PipelineRunResponse,
+    ProblemCandidateGenerated,
     PricingEvidenceContext,
     PublicDataContext,
+    QueryExpansionResult,
     ShoppingEvidenceContext,
 )
 from micro_niche_finder.jobs import build_reports, collect_trends, compute_features, generate_candidates, score_candidates
@@ -82,6 +84,7 @@ class PipelineService:
         seed_category_id: int,
         candidate_count: int,
         top_k: int,
+        evidence_mode: str = "full",
     ) -> PipelineRunResponse:
         seed_repo = SeedCategoryRepository(session)
         candidate_repo = CandidateRepository(session)
@@ -94,13 +97,27 @@ class PipelineService:
         if seed is None:
             raise ValueError(f"Seed category {seed_category_id} not found")
 
+        normalized_evidence_mode = evidence_mode.strip().lower()
+        if normalized_evidence_mode not in {"full", "lite", "minimal"}:
+            raise ValueError("evidence_mode must be one of: full, lite, minimal")
+        collect_full_evidence = normalized_evidence_mode == "full"
+        collect_lite_evidence = normalized_evidence_mode in {"full", "lite"}
+        collect_trend_evidence = normalized_evidence_mode != "minimal"
+
         generated = generate_candidates.run(seed.name, candidate_count, self.llm_service)
-        expansions = [self.llm_service.expand_queries(candidate) for candidate in generated.candidates]
+        if normalized_evidence_mode == "minimal":
+            expansions = [build_minimal_query_expansion(candidate) for candidate in generated.candidates]
+        else:
+            expansions = [self.llm_service.expand_queries(candidate) for candidate in generated.candidates]
         clustered = self.clustering_service.cluster_candidates(expansions)
-        kosis_options = self.kosis_employee_service.industry_options() if self.kosis_employee_service.is_configured() else []
+        kosis_options = (
+            self.kosis_employee_service.industry_options()
+            if collect_full_evidence and self.kosis_employee_service.is_configured()
+            else []
+        )
         shopping_options = (
             self.naver_shopping_insight_service.category_options()
-            if self.naver_shopping_insight_service.is_configured()
+            if collect_full_evidence and self.naver_shopping_insight_service.is_configured()
             else []
         )
 
@@ -174,6 +191,7 @@ class PipelineService:
                 query_group=group.queries,
                 risk_flags=candidate.risk_flags,
             )
+            google_response = None
             if kosis_options:
                 selection = self.llm_service.select_kosis_industry(
                     canonical_name=group.canonical_name,
@@ -227,7 +245,7 @@ class PipelineService:
                         )
 
             try:
-                if group.queries:
+                if collect_lite_evidence and group.queries:
                     query = group.queries[0]
                     request = NaverSearchRequest(
                         query=query,
@@ -258,7 +276,7 @@ class PipelineService:
                 online_gtm_context = None
 
             try:
-                if group.queries:
+                if collect_lite_evidence and group.queries:
                     volume_request = self.naver_ads_keyword_service.build_request(group.queries)
                     volume_metrics = self.naver_ads_keyword_service.fetch(volume_request)
                     absolute_demand_context = self.naver_ads_keyword_service.build_context(
@@ -279,7 +297,7 @@ class PipelineService:
                 absolute_demand_context = None
 
             try:
-                if group.queries and self.google_search_service.is_configured():
+                if collect_lite_evidence and group.queries and self.google_search_service.is_configured():
                     query = group.queries[0]
                     google_request = GoogleSearchRequest(q=query, num=5)
                     google_response = self.google_search_service.fetch(google_request)
@@ -299,10 +317,11 @@ class PipelineService:
                         suggested_channels=candidate.online_acquisition_channels,
                     )
             except Exception:
+                google_response = None
                 google_online_gtm_context = None
 
             try:
-                if group.queries:
+                if collect_full_evidence and group.queries:
                     pricing_evidence_context = self.pricing_evidence_service.collect(
                         canonical_name=group.canonical_name,
                         queries=group.queries,
@@ -369,18 +388,26 @@ class PipelineService:
                 shopping_evidence_context = None
 
             initial_request = self.datalab_service.build_request(group_name=group.canonical_name, queries=group.queries)
-            trend_response = collect_trends.run(
-                canonical_name=group.canonical_name,
-                queries=group.queries,
-                datalab_service=self.datalab_service,
-            )
+            if collect_trend_evidence:
+                trend_response = collect_trends.run(
+                    canonical_name=group.canonical_name,
+                    queries=group.queries,
+                    datalab_service=self.datalab_service,
+                )
+                trend_source = "naver_datalab"
+            else:
+                trend_response = self.datalab_service.estimate(initial_request)
+                trend_source = "naver_datalab_estimate"
             trend_repo.create_snapshot(
                 query_group_id=query_entity.id,
-                source="naver_datalab",
+                source=trend_source,
                 window_start=datetime.combine(trend_response.startDate, datetime.min.time(), tzinfo=timezone.utc),
                 window_end=datetime.combine(trend_response.endDate, datetime.min.time(), tzinfo=timezone.utc),
                 target_key="baseline_12w_initial",
-                request_payload_json=initial_request.model_dump(mode="json", exclude_none=True),
+                request_payload_json={
+                    **initial_request.model_dump(mode="json", exclude_none=True),
+                    "evidence_mode": normalized_evidence_mode,
+                },
                 raw_response_json=trend_response.model_dump(mode="json"),
             )
 
@@ -485,7 +512,7 @@ class PipelineService:
                     naver_total_results=search_evidence_context.total_results if search_evidence_context else None,
                     google_total_results=(
                         int(google_response.searchInformation.totalResults)
-                        if "google_response" in locals() and google_online_gtm_context is not None
+                        if google_response is not None and google_online_gtm_context is not None
                         else None
                     ),
                 )
@@ -509,7 +536,7 @@ class PipelineService:
                                 naver_total_results=search_evidence_context.total_results if search_evidence_context else None,
                                 google_total_results=(
                                     int(google_response.searchInformation.totalResults)
-                                    if "google_response" in locals()
+                                    if google_response is not None
                                     else None
                                 ),
                             ),
@@ -650,6 +677,44 @@ def combine_search_channel_scores(
     if total_weight <= 0:
         return sum(score for score, _ in available) / len(available)
     return sum(score * weight for score, weight in available) / total_weight
+
+
+def build_minimal_query_expansion(candidate: ProblemCandidateGenerated) -> QueryExpansionResult:
+    base_queries = list(dict.fromkeys(query.strip() for query in candidate.query_candidates if query.strip()))
+    if not base_queries:
+        fallback = candidate.job_to_be_done or candidate.pain or candidate.seed_category
+        base_queries = [" ".join(fallback.split())[:50]]
+
+    expanded = list(base_queries)
+    for query in base_queries[:2]:
+        expanded.extend(
+            [
+                f"{query} 관리",
+                f"{query} 자동화",
+                f"{query} 프로그램",
+                f"{query} 정리",
+            ]
+        )
+    expanded = list(dict.fromkeys(expanded))[:12]
+    commercial_queries = [
+        query
+        for query in expanded
+        if any(marker in query for marker in ("관리", "자동화", "프로그램", "추천", "대행"))
+    ][:6]
+    informational_queries = [
+        query
+        for query in expanded
+        if any(marker in query for marker in ("방법", "정리", "체크", "가이드"))
+    ][:6]
+
+    return QueryExpansionResult(
+        seed_category=candidate.seed_category,
+        persona=candidate.persona,
+        canonical_name=base_queries[0],
+        expanded_queries=expanded,
+        commercial_queries=commercial_queries,
+        informational_queries=informational_queries,
+    )
 
 
 def combine_online_gtm_contexts(

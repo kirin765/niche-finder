@@ -23,3 +23,10 @@ def test_allowance_returns_zero_when_budget_exhausted() -> None:
     now = datetime(2026, 4, 6, 12, 0, tzinfo=timezone.utc)
     allowance = service.allowance_for_run(calls_made_today=1000, now=now)
     assert allowance == 0
+
+
+def test_allowance_respects_explicit_daily_limit() -> None:
+    service = BudgetAllocatorService()
+    now = datetime(2026, 4, 6, 12, 0, tzinfo=timezone.utc)
+    allowance = service.allowance_for_run(calls_made_today=20, now=now, daily_limit=20)
+    assert allowance == 0

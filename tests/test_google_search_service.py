@@ -54,6 +54,9 @@ def test_google_search_service_builds_online_gtm_context() -> None:
 
 
 def test_google_search_service_falls_back_on_permission_error(monkeypatch) -> None:
+    monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "dummy")
+    get_settings.cache_clear()
+
     class _DeniedClient:
         def __init__(self, *args, **kwargs) -> None:
             pass
@@ -78,9 +81,9 @@ def test_google_search_service_falls_back_on_permission_error(monkeypatch) -> No
             )
 
     monkeypatch.setattr(httpx, "Client", _DeniedClient)
-    get_settings.cache_clear()
 
     service = GoogleSearchService()
+    monkeypatch.setattr(service.brave_usage_budget_service, "consume_monthly_call", lambda *args, **kwargs: True)
     response = service.fetch(GoogleSearchRequest(q="학원 상담 관리", num=3))
 
     assert int(response.searchInformation.totalResults) > 0
@@ -88,6 +91,9 @@ def test_google_search_service_falls_back_on_permission_error(monkeypatch) -> No
 
 
 def test_google_search_service_falls_back_on_rate_limit(monkeypatch) -> None:
+    monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "dummy")
+    get_settings.cache_clear()
+
     class _RateLimitedClient:
         def __init__(self, *args, **kwargs) -> None:
             pass
@@ -112,13 +118,78 @@ def test_google_search_service_falls_back_on_rate_limit(monkeypatch) -> None:
             )
 
     monkeypatch.setattr(httpx, "Client", _RateLimitedClient)
-    get_settings.cache_clear()
 
     service = GoogleSearchService()
+    monkeypatch.setattr(service.brave_usage_budget_service, "consume_monthly_call", lambda *args, **kwargs: True)
     response = service.fetch(GoogleSearchRequest(q="학원 상담 관리", num=3))
 
     assert int(response.searchInformation.totalResults) > 0
     assert service.is_configured() is False
+
+    get_settings.cache_clear()
+
+
+def test_google_search_service_falls_back_on_payment_required_without_retry(monkeypatch) -> None:
+    monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "dummy")
+    get_settings.cache_clear()
+
+    call_count = {"value": 0}
+
+    class _PaymentRequiredClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, *args, **kwargs):
+            call_count["value"] += 1
+            request = httpx.Request("GET", "https://api.search.brave.com/res/v1/web/search")
+            return httpx.Response(
+                402,
+                request=request,
+                json={
+                    "error": {
+                        "code": 402,
+                        "message": "Payment Required.",
+                    }
+                },
+            )
+
+    monkeypatch.setattr(httpx, "Client", _PaymentRequiredClient)
+
+    service = GoogleSearchService()
+    monkeypatch.setattr(service.brave_usage_budget_service, "consume_monthly_call", lambda *args, **kwargs: True)
+
+    response = service.fetch(GoogleSearchRequest(q="학원 상담 관리", num=3))
+
+    assert int(response.searchInformation.totalResults) > 0
+    assert call_count["value"] == 1
+    assert service.is_configured() is False
+
+    get_settings.cache_clear()
+
+
+def test_google_search_service_short_circuits_when_monthly_budget_exhausted(monkeypatch) -> None:
+    monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "dummy")
+    get_settings.cache_clear()
+
+    class _FailingClient:
+        def __init__(self, *args, **kwargs) -> None:
+            raise AssertionError("HTTP client should not be created when monthly budget is exhausted")
+
+    monkeypatch.setattr(httpx, "Client", _FailingClient)
+
+    service = GoogleSearchService()
+    monkeypatch.setattr(service.brave_usage_budget_service, "consume_monthly_call", lambda *args, **kwargs: False)
+
+    response = service.fetch(GoogleSearchRequest(q="학원 상담 관리", num=3))
+
+    assert int(response.searchInformation.totalResults) > 0
+    assert service.is_configured() is True
 
     get_settings.cache_clear()
 
