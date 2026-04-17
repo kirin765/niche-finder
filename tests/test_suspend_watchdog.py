@@ -29,6 +29,7 @@ def test_summarize_blockers_empty_when_idle() -> None:
         active_system_units=[],
         active_user_units=[],
         inhibitors=[],
+        auto_suspend_disabled_sources=[],
     )
 
     blockers = _summarize_blockers(snapshot)
@@ -43,3 +44,17 @@ def test_exclude_watchdog_job_filters_only_own_unit() -> None:
     ]
 
     assert _exclude_watchdog_job(lines) == ["88888 micro-niche-collector.service start waiting"]
+
+
+def test_disabled_sources_are_reported_as_disabled() -> None:
+    snapshot = WatchdogSnapshot(
+        elapsed_seconds=60,
+        system_jobs=[],
+        user_jobs=[],
+        active_system_units=[],
+        active_user_units=[],
+        inhibitors=[],
+        auto_suspend_disabled_sources=["session:/run/user/1000/micro-niche-finder/auto-suspend.disabled"],
+    )
+
+    assert snapshot.auto_suspend_disabled_sources == ["session:/run/user/1000/micro-niche-finder/auto-suspend.disabled"]

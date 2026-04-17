@@ -31,6 +31,26 @@ For KOSIS market sizing, either:
 The recommended profile-based structure for KOSIS is documented in `README.md` under the KOSIS mapping section and expands the old employee-count model into structure, revenue, growth, demand, and regional profiles.
 For Telegram or Gmail delivery, set the relevant fields if you want bot or email notifications. Required Telegram fields are `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. Required Gmail fields are `GMAIL_USERNAME`, `GMAIL_APP_PASSWORD`, `GMAIL_FROM_EMAIL`, and `GMAIL_TO_EMAILS`. For Gmail, use an app password rather than your normal account password.
 
+Auto suspend can be paused from the GUI session by creating the session marker file. The watchdog checks both a session marker and a global marker:
+
+```bash
+python -m apps.worker.auto_suspend_control status
+python -m apps.worker.auto_suspend_control disable
+python -m apps.worker.auto_suspend_control enable
+python -m apps.worker.auto_suspend_control toggle
+```
+
+Use `--scope global` if you want to pause suspend for everyone on the machine.
+
+Optional desktop launchers are available under `deploy/desktop/` if you want one-click GUI toggles.
+
+```bash
+mkdir -p ~/.local/share/applications
+cp deploy/desktop/micro-niche-finder-toggle-auto-suspend.desktop ~/.local/share/applications/
+cp deploy/desktop/micro-niche-finder-disable-auto-suspend.desktop ~/.local/share/applications/
+cp deploy/desktop/micro-niche-finder-enable-auto-suspend.desktop ~/.local/share/applications/
+```
+
 ## Database
 
 ```bash

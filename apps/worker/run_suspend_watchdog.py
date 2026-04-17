@@ -6,6 +6,9 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from dataclasses import field
+
+from apps.worker.auto_suspend_state import disabled_sources
 
 SYSTEM_BLOCKING_UNITS = (
     "micro-niche-auto-seeds.service",
@@ -29,6 +32,7 @@ class WatchdogSnapshot:
     active_system_units: list[str]
     active_user_units: list[str]
     inhibitors: list[str]
+    auto_suspend_disabled_sources: list[str] = field(default_factory=list)
 
 
 def _run(command: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -102,6 +106,7 @@ def _snapshot(elapsed_seconds: int) -> WatchdogSnapshot:
             env={"XDG_RUNTIME_DIR": "/run/user/0"},
         ),
         inhibitors=_collect_inhibitors(),
+        auto_suspend_disabled_sources=disabled_sources(),
     )
 
 
@@ -113,6 +118,7 @@ def _print_snapshot(snapshot: WatchdogSnapshot) -> None:
         "active_system_units": snapshot.active_system_units,
         "active_user_units": snapshot.active_user_units,
         "inhibitors": snapshot.inhibitors,
+        "auto_suspend_disabled_sources": snapshot.auto_suspend_disabled_sources,
         "blockers": _summarize_blockers(snapshot),
     }
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
@@ -147,6 +153,21 @@ def main() -> None:
             )
             return
 
+        disabled = disabled_sources()
+        if disabled:
+            print(
+                json.dumps(
+                    {
+                        "status": "disabled",
+                        "elapsed_seconds": 0,
+                        "disabled_sources": disabled,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+            return
+
         start = time.monotonic()
         time.sleep(max(0, args.initial_delay_sec))
 
@@ -154,6 +175,20 @@ def main() -> None:
             elapsed_seconds = int(time.monotonic() - start)
             snapshot = _snapshot(elapsed_seconds=elapsed_seconds)
             _print_snapshot(snapshot)
+
+            if snapshot.auto_suspend_disabled_sources:
+                print(
+                    json.dumps(
+                        {
+                            "status": "disabled",
+                            "elapsed_seconds": elapsed_seconds,
+                            "disabled_sources": snapshot.auto_suspend_disabled_sources,
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                )
+                return
 
             blockers = _summarize_blockers(snapshot)
             if not blockers:

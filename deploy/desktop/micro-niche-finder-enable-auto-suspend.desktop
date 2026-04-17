@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Enable Micro Niche Auto Suspend
+Comment=Resume automatic suspend for the desktop session
+Exec=/opt/micro-niche-finder/.venv/bin/python -m apps.worker.auto_suspend_control enable
+Terminal=false
+Categories=Utility;
