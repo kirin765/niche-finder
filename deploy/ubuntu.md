@@ -44,6 +44,14 @@ Use `--scope global` if you want to pause suspend for everyone on the machine.
 
 Optional desktop launchers are available under `deploy/desktop/` if you want one-click GUI toggles.
 
+You can install them into the current user's menu with:
+
+```bash
+./scripts/install_auto_suspend_launchers.sh
+```
+
+If you prefer to do it manually:
+
 ```bash
 mkdir -p ~/.local/share/applications
 cp deploy/desktop/micro-niche-finder-toggle-auto-suspend.desktop ~/.local/share/applications/
