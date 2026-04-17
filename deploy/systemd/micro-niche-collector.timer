@@ -1,9 +1,9 @@
 [Unit]
-Description=Run Micro Niche Finder collector every 30 minutes
+Description=Run Micro Niche Finder collector once per day
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=30min
+OnCalendar=*-*-* 01:10:00 Asia/Seoul
+AccuracySec=1m
 Unit=micro-niche-collector.service
 Persistent=true
 

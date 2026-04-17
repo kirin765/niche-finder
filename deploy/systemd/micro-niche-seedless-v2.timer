@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Micro Niche Finder seedless v2 once per day
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 Asia/Seoul
+AccuracySec=1m
+Persistent=true
+WakeSystem=true
+Unit=micro-niche-seedless-v2.service
+
+[Install]
+WantedBy=timers.target

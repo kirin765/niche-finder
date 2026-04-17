@@ -1,9 +1,9 @@
 [Unit]
-Description=Run Micro Niche Finder KOSIS collector every 6 hours
+Description=Run Micro Niche Finder KOSIS collector once per day
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=6h
+OnCalendar=*-*-* 01:50:00 Asia/Seoul
+AccuracySec=1m
 Unit=micro-niche-kosis-collector.service
 Persistent=true
 

@@ -50,6 +50,12 @@ You can install them into the current user's menu with:
 ./scripts/install_auto_suspend_launchers.sh
 ```
 
+To install them for `k` explicitly from a root shell:
+
+```bash
+./scripts/install_auto_suspend_launchers.sh --home /home/k
+```
+
 If you prefer to do it manually:
 
 ```bash
@@ -85,6 +91,8 @@ sudo cp deploy/systemd/micro-niche-naver-shopping-insight-collector.service /etc
 sudo cp deploy/systemd/micro-niche-naver-shopping-insight-collector.timer /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-kosis-collector.service /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-kosis-collector.timer /etc/systemd/system/
+sudo cp deploy/systemd/micro-niche-seedless-v2.service /etc/systemd/system/
+sudo cp deploy/systemd/micro-niche-seedless-v2.timer /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-auto-seeds.service /etc/systemd/system/
 sudo cp deploy/systemd/micro-niche-auto-seeds.timer /etc/systemd/system/
 sudo cp deploy/systemd/repro-suspend-after-periodic.service /etc/systemd/system/
@@ -95,24 +103,29 @@ sudo systemctl enable --now micro-niche-google-collector.timer
 sudo systemctl enable --now micro-niche-naver-search-collector.timer
 sudo systemctl enable --now micro-niche-naver-shopping-insight-collector.timer
 sudo systemctl enable --now micro-niche-kosis-collector.timer
+sudo systemctl enable --now micro-niche-seedless-v2.timer
 sudo systemctl enable --now micro-niche-auto-seeds.timer
+sudo systemctl disable --now micro-niche-daily-report.timer
 ```
 
 ## What Runs
 
 - `micro-niche-api.service`: keeps the FastAPI app running.
-- `micro-niche-collector.timer`: wakes the collector every 30 minutes.
+- `micro-niche-collector.timer`: wakes the collector once per day.
 - `micro-niche-collector.service`: computes the current budget allowance and collects only the due schedules it can afford.
-- `micro-niche-google-collector.timer`: wakes the Google collector every 30 minutes.
+- `micro-niche-google-collector.timer`: wakes the Google collector once per day.
 - `micro-niche-google-collector.service`: samples Brave Search queries for cross-source validation.
-- `micro-niche-naver-search-collector.timer`: refreshes Naver Search evidence every 30 minutes.
+- `micro-niche-naver-search-collector.timer`: refreshes Naver Search evidence once per day.
 - `micro-niche-naver-search-collector.service`: samples Naver web search evidence for demand/context validation.
-- `micro-niche-naver-shopping-insight-collector.timer`: refreshes Shopping Insight evidence every 2 hours for commerce-relevant niches.
+- `micro-niche-naver-shopping-insight-collector.timer`: refreshes Shopping Insight evidence once per day for commerce-relevant niches.
 - `micro-niche-naver-shopping-insight-collector.service`: samples Naver shopping-click category trends as supplementary commerce evidence.
-- `micro-niche-kosis-collector.timer`: refreshes KOSIS employee-count market-size references every 6 hours.
+- `micro-niche-kosis-collector.timer`: refreshes KOSIS employee-count market-size references once per day.
 - `micro-niche-kosis-collector.service`: samples KOSIS employee-count data for mapped industries.
-- `micro-niche-auto-seeds.timer`: runs seed discovery and report generation every 8 hours.
+- `micro-niche-seedless-v2.timer`: runs seedless discovery once per day.
+- `micro-niche-seedless-v2.service`: performs the search-based discovery batch once per day.
+- `micro-niche-auto-seeds.timer`: runs seed discovery and report generation once per day.
 - `micro-niche-auto-seeds.service`: generates new seed categories, runs the pipeline, sends a Telegram summary, and writes a markdown copy under `llm-wiki/raw` inside the repository checkout.
+- `micro-niche-daily-report.timer`: should stay disabled to avoid duplicate daily reports.
 - `repro-suspend-after-periodic.service`: retries suspend after a periodic job finishes until the system actually becomes idle enough to suspend.
 
 ## Manual checks
@@ -124,6 +137,7 @@ sudo systemctl status micro-niche-google-collector.timer
 sudo systemctl status micro-niche-naver-search-collector.timer
 sudo systemctl status micro-niche-naver-shopping-insight-collector.timer
 sudo systemctl status micro-niche-kosis-collector.timer
+sudo systemctl status micro-niche-seedless-v2.timer
 sudo systemctl status micro-niche-auto-seeds.timer
 sudo journalctl -u micro-niche-collector.service -n 100 --no-pager
 sudo journalctl -u micro-niche-google-collector.service -n 100 --no-pager

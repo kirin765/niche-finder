@@ -1,9 +1,9 @@
 [Unit]
-Description=Run Micro Niche Finder Naver Shopping Insight collector every 2 hours
+Description=Run Micro Niche Finder Naver Shopping Insight collector once per day
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=2h
+OnCalendar=*-*-* 01:40:00 Asia/Seoul
+AccuracySec=1m
 Unit=micro-niche-naver-shopping-insight-collector.service
 Persistent=true
 

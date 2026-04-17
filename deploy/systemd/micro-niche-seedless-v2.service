@@ -1,0 +1,14 @@
+[Unit]
+Description=Micro Niche Finder seedless v2 collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/micro-niche-finder
+EnvironmentFile=/etc/micro-niche-finder.env
+ExecStart=/opt/micro-niche-finder/.venv/bin/python -m apps.worker.run_seedless_v2
+StandardOutput=append:/opt/micro-niche-finder/logs/seedless_v2_cron.log
+StandardError=append:/opt/micro-niche-finder/logs/seedless_v2_cron.log

@@ -1,9 +1,9 @@
 [Unit]
-Description=Run Micro Niche Finder auto seed and report generator every 8 hours
+Description=Run Micro Niche Finder auto seed and report generator once per day
 
 [Timer]
-OnBootSec=20min
-OnUnitActiveSec=8h
+OnCalendar=*-*-* 09:00:00 Asia/Seoul
+AccuracySec=1m
 Unit=micro-niche-auto-seeds.service
 Persistent=true
 
