@@ -22,9 +22,15 @@ class ScoreWeights:
 
 
 class ScoringService:
-    def __init__(self, weights: ScoreWeights | None = None) -> None:
+    def __init__(
+        self,
+        weights: ScoreWeights | None = None,
+        public_data_opportunity_service: PublicDataOpportunityService | None = None,
+    ) -> None:
         self.weights = weights or ScoreWeights()
-        self.public_data_opportunity_service = PublicDataOpportunityService()
+        self.public_data_opportunity_service = (
+            public_data_opportunity_service or PublicDataOpportunityService()
+        )
 
     def score(self, candidate: ProblemCandidateGenerated, features: TrendFeatureSet) -> ScoreBreakdown:
         repeated_pain = self._repeat_score(candidate.repeat_frequency)

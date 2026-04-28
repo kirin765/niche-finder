@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 
+from apps.worker.bootstrap import run_worker
 from micro_niche_finder.bootstrap import get_container
 from micro_niche_finder.config.database import SessionLocal
 
@@ -20,4 +21,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run_worker(main, job_name="run_collector")
