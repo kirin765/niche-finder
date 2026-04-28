@@ -95,6 +95,22 @@ class Settings(BaseSettings):
     collector_default_priority: int = Field(default=100, alias="COLLECTOR_DEFAULT_PRIORITY")
     top_candidate_analysis_count: int = Field(default=10, alias="TOP_CANDIDATE_ANALYSIS_COUNT")
 
+    # KOSIS explicit feature flag — set to false to disable KOSIS integration
+    # without requiring KOSIS_API_KEY to be absent (useful for staging environments)
+    kosis_enabled: bool = Field(default=True, alias="KOSIS_ENABLED")
+
+    # Scoring dimension weights — must sum to approximately 1.0
+    # Tune these without code changes to adjust candidate ranking priorities
+    score_weight_repeated_pain: float = Field(default=0.17, alias="SCORE_WEIGHT_REPEATED_PAIN")
+    score_weight_problem_intensity: float = Field(default=0.14, alias="SCORE_WEIGHT_PROBLEM_INTENSITY")
+    score_weight_payment_likelihood: float = Field(default=0.12, alias="SCORE_WEIGHT_PAYMENT_LIKELIHOOD")
+    score_weight_online_demand: float = Field(default=0.15, alias="SCORE_WEIGHT_ONLINE_DEMAND")
+    score_weight_market_size_sufficiency: float = Field(default=0.10, alias="SCORE_WEIGHT_MARKET_SIZE_SUFFICIENCY")
+    score_weight_online_gtm_efficiency: float = Field(default=0.12, alias="SCORE_WEIGHT_ONLINE_GTM_EFFICIENCY")
+    score_weight_market_size_ceiling: float = Field(default=0.10, alias="SCORE_WEIGHT_MARKET_SIZE_CEILING")
+    score_weight_competitive_whitespace: float = Field(default=0.06, alias="SCORE_WEIGHT_COMPETITIVE_WHITESPACE")
+    score_weight_keyword_difficulty: float = Field(default=0.08, alias="SCORE_WEIGHT_KEYWORD_DIFFICULTY")
+    score_weight_implementation_feasibility: float = Field(default=0.04, alias="SCORE_WEIGHT_IMPLEMENTATION_FEASIBILITY")
 
 
 @lru_cache(maxsize=1)
