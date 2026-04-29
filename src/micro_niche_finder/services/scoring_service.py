@@ -20,6 +20,24 @@ class ScoreWeights:
     keyword_difficulty: float = 0.08
     implementation_feasibility: float = 0.04
 
+    @classmethod
+    def from_settings(cls) -> "ScoreWeights":
+        """Load weights from environment via Settings (supports live tuning via env vars)."""
+        from micro_niche_finder.config.settings import get_settings
+        s = get_settings()
+        return cls(
+            repeated_pain=s.score_weight_repeated_pain,
+            problem_intensity=s.score_weight_problem_intensity,
+            payment_likelihood=s.score_weight_payment_likelihood,
+            online_demand=s.score_weight_online_demand,
+            market_size_sufficiency=s.score_weight_market_size_sufficiency,
+            online_gtm_efficiency=s.score_weight_online_gtm_efficiency,
+            market_size_ceiling=s.score_weight_market_size_ceiling,
+            competitive_whitespace=s.score_weight_competitive_whitespace,
+            keyword_difficulty=s.score_weight_keyword_difficulty,
+            implementation_feasibility=s.score_weight_implementation_feasibility,
+        )
+
 
 class ScoringService:
     def __init__(
@@ -27,7 +45,7 @@ class ScoringService:
         weights: ScoreWeights | None = None,
         public_data_opportunity_service: PublicDataOpportunityService | None = None,
     ) -> None:
-        self.weights = weights or ScoreWeights()
+        self.weights = weights if weights is not None else ScoreWeights.from_settings()
         self.public_data_opportunity_service = (
             public_data_opportunity_service or PublicDataOpportunityService()
         )

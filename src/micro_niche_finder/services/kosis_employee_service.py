@@ -30,6 +30,8 @@ class KosisEmployeeService:
         self.settings = get_settings()
 
     def is_configured(self) -> bool:
+        if not self.settings.kosis_enabled:
+            return False
         return bool(self.settings.kosis_api_key and self.profile_options())
 
     def industry_options(self) -> list[KosisIndustryOption]:
