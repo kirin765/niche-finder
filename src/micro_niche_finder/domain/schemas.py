@@ -490,6 +490,17 @@ class FinalAnalysisInput(BaseModel):
     pricing_evidence_context: PricingEvidenceContext | None = None
 
 
+class KeywordPageMapEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    primary_keyword: str
+    page_type: str
+    search_intent: str
+    suggested_slug: str
+    page_title: str
+    supporting_keywords: list[str]
+
+
 class FinalAnalysisOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -520,6 +531,9 @@ class FinalAnalysisOutput(BaseModel):
     public_data_summary: str
     online_gtm_summary: str
     recommended_online_channels: list[str]
+    keyword_page_map: list[KeywordPageMapEntry]
+    internal_linking_plan: list[str]
+    seo_launch_plan: list[str]
     validation_plan: list[str]
     kill_criteria: list[str]
     risk_flags: list[str]

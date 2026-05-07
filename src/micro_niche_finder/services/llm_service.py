@@ -17,6 +17,7 @@ from micro_niche_finder.domain.schemas import (
     FinalAnalysisOutput,
     KosisIndustryOption,
     KosisIndustrySelection,
+    KeywordPageMapEntry,
     NaverShoppingCategoryOption,
     NaverShoppingCategorySelection,
     ProblemCandidateGenerated,
@@ -424,6 +425,52 @@ class OpenAIResearchService:
                 if payload.online_gtm_context and payload.online_gtm_context.channel_signals
                 else ["네이버 검색", "블로그 SEO", "업종 커뮤니티"]
             ),
+            keyword_page_map=[
+                KeywordPageMapEntry(
+                    primary_keyword=payload.query_group[0] if payload.query_group else payload.canonical_name,
+                    page_type="landing",
+                    search_intent="transactional",
+                    suggested_slug=f"/{'-'.join(payload.canonical_name.split())}",
+                    page_title=f"{payload.canonical_name} | {payload.persona}용 운영 도구",
+                    supporting_keywords=[
+                        payload.canonical_name,
+                        f"{payload.canonical_name} 프로그램",
+                        f"{payload.canonical_name} 솔루션",
+                    ],
+                ),
+                KeywordPageMapEntry(
+                    primary_keyword=f"{payload.canonical_name} 자동화",
+                    page_type="workflow",
+                    search_intent="commercial-investigational",
+                    suggested_slug=f"/workflows/{'-'.join(payload.canonical_name.split())}",
+                    page_title=f"{payload.canonical_name} 자동화 방법",
+                    supporting_keywords=[
+                        f"{payload.canonical_name} 관리",
+                        f"{payload.canonical_name} 엑셀",
+                    ],
+                ),
+                KeywordPageMapEntry(
+                    primary_keyword=f"{payload.canonical_name} 엑셀",
+                    page_type="guide",
+                    search_intent="informational",
+                    suggested_slug=f"/guides/{'-'.join(payload.canonical_name.split())}-excel",
+                    page_title=f"{payload.canonical_name} 엑셀 운영 가이드",
+                    supporting_keywords=[
+                        f"{payload.canonical_name} 양식",
+                        f"{payload.canonical_name} 체크리스트",
+                    ],
+                ),
+            ],
+            internal_linking_plan=[
+                "가이드/워크플로우 페이지에서 메인 랜딩으로 CTA 링크를 연결한다.",
+                "메인 랜딩에서 실무 가이드와 체크리스트 페이지를 증거 링크로 연결한다.",
+                "유사 키워드끼리 중복 페이지를 만들지 말고 하나의 canonical 페이지로 묶는다.",
+            ],
+            seo_launch_plan=[
+                "메인 랜딩 1개를 먼저 발행하고 Search Console로 색인 확인을 한다.",
+                "워크플로우 설명 페이지 1개와 실무 가이드 1개를 1주 내 추가한다.",
+                "각 페이지에 실제 예시, 체크리스트, CTA를 넣고 query-page fit을 측정한다.",
+            ],
             validation_plan=[
                 f"{payload.buyer} 5명을 인터뷰해 현재 수작업 빈도와 누락 비용을 확인한다.",
                 f"'{payload.canonical_name}' 하나만 설명하는 랜딩페이지를 열고 검색/콘텐츠 유입으로 문의 전환율을 측정한다.",

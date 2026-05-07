@@ -87,6 +87,36 @@ def _build_raw_markdown(summaries: list[dict[str, Any]], generated_at: datetime)
                 ]
             )
             lines.extend([f"- {item}" for item in report.get("price_test", [])])
+            if report.get("keyword_page_map"):
+                lines.extend(
+                    [
+                        "",
+                        "#### Keyword-to-Page Map",
+                        "",
+                    ]
+                )
+                for item in report.get("keyword_page_map", []):
+                    lines.append(
+                        f"- {item.get('primary_keyword')} | {item.get('page_type')} | slug={item.get('suggested_slug')} | title={item.get('page_title')}"
+                    )
+            if report.get("internal_linking_plan"):
+                lines.extend(
+                    [
+                        "",
+                        "#### Internal Linking Plan",
+                        "",
+                    ]
+                )
+                lines.extend([f"- {item}" for item in report.get("internal_linking_plan", [])])
+            if report.get("seo_launch_plan"):
+                lines.extend(
+                    [
+                        "",
+                        "#### SEO Launch Plan",
+                        "",
+                    ]
+                )
+                lines.extend([f"- {item}" for item in report.get("seo_launch_plan", [])])
             lines.extend(
                 [
                     "",

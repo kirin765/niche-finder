@@ -125,6 +125,12 @@ def _print_snapshot(snapshot: WatchdogSnapshot) -> None:
     sys.stdout.flush()
 
 
+def _emit_event(payload: dict[str, object]) -> None:
+    message = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    sys.stderr.write(message + "\n")
+    sys.stderr.flush()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Retry suspend after periodic jobs until the system becomes idle.")
     parser.add_argument("--initial-delay-sec", type=int, default=120)
@@ -192,20 +198,27 @@ def main() -> None:
 
             blockers = _summarize_blockers(snapshot)
             if not blockers:
-                print(json.dumps({"status": "suspending", "elapsed_seconds": elapsed_seconds}, ensure_ascii=False))
-                sys.stdout.flush()
+                _emit_event(
+                    {
+                        "status": "attempting_suspend",
+                        "elapsed_seconds": elapsed_seconds,
+                        "disabled_sources": snapshot.auto_suspend_disabled_sources,
+                        "blockers": blockers,
+                        "system_jobs": snapshot.system_jobs,
+                        "user_jobs": snapshot.user_jobs,
+                        "active_system_units": snapshot.active_system_units,
+                        "active_user_units": snapshot.active_user_units,
+                    }
+                )
                 result = _run(["systemctl", "suspend"])
                 if result.returncode != 0:
-                    print(
-                        json.dumps(
-                            {
-                                "status": "suspend_failed",
-                                "returncode": result.returncode,
-                                "stderr": result.stderr.strip(),
-                            },
-                            ensure_ascii=False,
-                            sort_keys=True,
-                        )
+                    _emit_event(
+                        {
+                            "status": "suspend_failed",
+                            "returncode": result.returncode,
+                            "stdout": result.stdout.strip(),
+                            "stderr": result.stderr.strip(),
+                        }
                     )
                 return
 

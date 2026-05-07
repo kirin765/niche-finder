@@ -1,6 +1,7 @@
 from micro_niche_finder.domain.schemas import (
     FinalAnalysisInput,
     FinalAnalysisOutput,
+    KeywordPageMapEntry,
     ScoreBreakdown,
     TrendFeatureSet,
 )
@@ -37,6 +38,9 @@ class StubLLMService:
             public_data_summary="추가 확인 필요",
             online_gtm_summary="온라인 채널 접근 가능",
             recommended_online_channels=["네이버 검색"],
+            keyword_page_map=[],
+            internal_linking_plan=[],
+            seo_launch_plan=[],
             validation_plan=[],
             kill_criteria=[],
             risk_flags=[],
@@ -111,5 +115,9 @@ def test_report_service_normalizes_generic_title_and_action_fields() -> None:
     assert len(report.price_test) == 3
     assert len(report.must_have_scope) == 3
     assert len(report.must_not_build_scope) == 3
+    assert len(report.keyword_page_map) == 3
+    assert report.keyword_page_map[0].page_type == "landing"
+    assert len(report.internal_linking_plan) >= 2
+    assert len(report.seo_launch_plan) >= 3
     assert len(report.validation_plan) == 3
     assert len(report.kill_criteria) == 3

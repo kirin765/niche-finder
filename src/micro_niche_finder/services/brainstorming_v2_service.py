@@ -6,6 +6,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
@@ -39,8 +40,21 @@ class BrainstormingCandidateV2:
 
 
 class BrainstormingV2Service:
-    def __init__(self, report_service: ReportService) -> None:
+    DEFAULT_ARCHIVE_FILE_LIMIT = 10
+
+    def __init__(
+        self,
+        report_service: ReportService,
+        *,
+        raw_report_dir: Path | str | None = None,
+        archive_file_limit: int = DEFAULT_ARCHIVE_FILE_LIMIT,
+    ) -> None:
         self.report_service = report_service
+        if raw_report_dir is None:
+            self.raw_report_dir = Path(__file__).resolve().parents[3] / "llm-wiki" / "raw"
+        else:
+            self.raw_report_dir = Path(raw_report_dir)
+        self.archive_file_limit = max(1, archive_file_limit)
 
     def rank_candidates(
         self,
@@ -132,15 +146,86 @@ class BrainstormingV2Service:
                     report_json = json.loads(report_json)
                 except Exception:
                     report_json = {}
-            result.append(
-                {
-                    "seed_name": row[0],
-                    "niche_name": report_json.get("niche_name", ""),
-                    "persona": report_json.get("persona", ""),
-                    "problem_summary": report_json.get("problem_summary", ""),
-                }
+            reference = self._build_report_reference(seed_name=row[0], report_json=report_json)
+            if reference is not None:
+                result.append(reference)
+
+        result.extend(self._load_archived_reports())
+
+        deduped: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for item in result:
+            key = (
+                (item.get("niche_name") or "").strip().lower(),
+                (item.get("persona") or "").strip().lower(),
+                (item.get("problem_summary") or "").strip().lower(),
             )
-        return result
+            if not any(key):
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item)
+        return deduped
+
+    def _load_archived_reports(self) -> list[dict[str, Any]]:
+        if not self.raw_report_dir.exists():
+            return []
+
+        reports: list[dict[str, Any]] = []
+        report_files = sorted(self.raw_report_dir.glob("*.md"), reverse=True)[: self.archive_file_limit]
+        for path in report_files:
+            reports.extend(self._parse_archived_report(path))
+        return reports
+
+    def _parse_archived_report(self, path: Path) -> list[dict[str, Any]]:
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            return []
+
+        references: list[dict[str, Any]] = []
+        current_seed_name = ""
+        collecting_json = False
+        json_lines: list[str] = []
+
+        for line in content.splitlines():
+            if line.startswith("## ") and not line.startswith("### "):
+                current_seed_name = line[3:].strip()
+                continue
+            if line.strip() == "```json":
+                collecting_json = True
+                json_lines = []
+                continue
+            if collecting_json and line.strip() == "```":
+                collecting_json = False
+                try:
+                    payload = json.loads("\n".join(json_lines))
+                except json.JSONDecodeError:
+                    json_lines = []
+                    continue
+                reference = self._build_report_reference(seed_name=current_seed_name, report_json=payload)
+                if reference is not None:
+                    references.append(reference)
+                json_lines = []
+                continue
+            if collecting_json:
+                json_lines.append(line)
+
+        return references
+
+    def _build_report_reference(self, *, seed_name: str, report_json: dict[str, Any]) -> dict[str, Any] | None:
+        niche_name = str(report_json.get("niche_name") or "").strip()
+        persona = str(report_json.get("persona") or "").strip()
+        problem_summary = str(report_json.get("problem_summary") or "").strip()
+        if not niche_name or not persona or not problem_summary:
+            return None
+        return {
+            "seed_name": seed_name.strip(),
+            "niche_name": niche_name,
+            "persona": persona,
+            "problem_summary": problem_summary,
+        }
 
     def _novelty_against_recent(
         self,

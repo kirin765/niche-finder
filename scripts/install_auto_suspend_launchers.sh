@@ -2,7 +2,34 @@
 set -euo pipefail
 
 src_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/deploy/desktop"
-dest_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+home_dir="${HOME:-}"
+dest_home=""
+dest_dir=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --home)
+      dest_home="$2"
+      shift 2
+      ;;
+    --dest-dir)
+      dest_dir="$2"
+      shift 2
+      ;;
+    *)
+      printf '%s\n' "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -n "$dest_dir" ]]; then
+  :
+elif [[ -n "$dest_home" ]]; then
+  dest_dir="$dest_home/.local/share/applications"
+else
+  dest_dir="${XDG_DATA_HOME:-${home_dir}/.local/share}/applications"
+fi
 
 mkdir -p "$dest_dir"
 cp "$src_dir"/micro-niche-finder-toggle-auto-suspend.desktop "$dest_dir"/

@@ -1,4 +1,4 @@
-from micro_niche_finder.domain.schemas import FinalAnalysisInput, FinalAnalysisOutput
+from micro_niche_finder.domain.schemas import FinalAnalysisInput, FinalAnalysisOutput, KeywordPageMapEntry
 from micro_niche_finder.services.llm_service import OpenAIResearchService
 
 
@@ -83,6 +83,15 @@ class ReportService:
                 "핵심 문제 해결에 외부 핵심 시스템 교체가 필요하면 보류한다.",
             ],
         )
+        keyword_page_map = self._normalize_keyword_page_map(report.keyword_page_map, analysis_input=analysis_input)
+        internal_linking_plan = self._normalize_list(
+            report.internal_linking_plan,
+            fallback=self._default_internal_linking_plan(keyword_page_map),
+        )
+        seo_launch_plan = self._normalize_list(
+            report.seo_launch_plan,
+            fallback=self._default_seo_launch_plan(keyword_page_map),
+        )
         return report.model_copy(
             update={
                 "title": title,
@@ -95,6 +104,9 @@ class ReportService:
                 "price_test": price_test,
                 "must_have_scope": must_have_scope,
                 "must_not_build_scope": must_not_build_scope,
+                "keyword_page_map": keyword_page_map,
+                "internal_linking_plan": internal_linking_plan,
+                "seo_launch_plan": seo_launch_plan,
                 "validation_plan": validation_plan,
                 "kill_criteria": kill_criteria,
             }
@@ -128,6 +140,23 @@ class ReportService:
         return cleaned or fallback
 
     @staticmethod
+    def _normalize_keyword_page_map(
+        values: list[KeywordPageMapEntry],
+        *,
+        analysis_input: FinalAnalysisInput,
+    ) -> list[KeywordPageMapEntry]:
+        cleaned = [
+            item
+            for item in values
+            if item.primary_keyword.strip()
+            and item.page_type.strip()
+            and item.search_intent.strip()
+            and item.suggested_slug.strip()
+            and item.page_title.strip()
+        ]
+        return cleaned or ReportService._default_keyword_page_map(analysis_input)
+
+    @staticmethod
     def _clean_text(value: str, *, fallback: str) -> str:
         cleaned = (value or "").strip()
         return cleaned or fallback
@@ -140,3 +169,75 @@ class ReportService:
     def _looks_generic(text: str, markers: tuple[str, ...]) -> bool:
         normalized = " ".join(text.lower().split())
         return any(marker in normalized for marker in markers)
+
+    @staticmethod
+    def _slugify(value: str) -> str:
+        return "-".join(part for part in value.lower().replace("/", " ").split() if part)[:80]
+
+    @staticmethod
+    def _default_keyword_page_map(analysis_input: FinalAnalysisInput) -> list[KeywordPageMapEntry]:
+        canonical = " ".join(analysis_input.canonical_name.split())
+        persona = " ".join(analysis_input.persona.split())
+        query_terms = [term.strip() for term in analysis_input.query_group if term and term.strip()]
+        primary = query_terms[0] if query_terms else canonical
+        workflow_keyword = query_terms[1] if len(query_terms) > 1 else f"{canonical} 자동화"
+        problem_keyword = query_terms[2] if len(query_terms) > 2 else f"{canonical} 엑셀"
+
+        return [
+            KeywordPageMapEntry(
+                primary_keyword=primary,
+                page_type="landing",
+                search_intent="transactional",
+                suggested_slug=f"/{ReportService._slugify(primary)}",
+                page_title=f"{canonical} | {persona}용 핵심 운영 도구",
+                supporting_keywords=[canonical, f"{canonical} 프로그램", f"{canonical} 솔루션"],
+            ),
+            KeywordPageMapEntry(
+                primary_keyword=workflow_keyword,
+                page_type="workflow",
+                search_intent="commercial-investigational",
+                suggested_slug=f"/workflows/{ReportService._slugify(workflow_keyword)}",
+                page_title=f"{workflow_keyword}를 수기 대신 처리하는 방법",
+                supporting_keywords=[f"{canonical} 자동화", f"{canonical} 관리", f"{canonical} 툴"],
+            ),
+            KeywordPageMapEntry(
+                primary_keyword=problem_keyword,
+                page_type="guide",
+                search_intent="informational",
+                suggested_slug=f"/guides/{ReportService._slugify(problem_keyword)}",
+                page_title=f"{problem_keyword}로 생기는 누락을 줄이는 실무 가이드",
+                supporting_keywords=[f"{canonical} 양식", f"{canonical} 체크리스트", f"{canonical} 관리 방법"],
+            ),
+        ]
+
+    @staticmethod
+    def _default_internal_linking_plan(keyword_page_map: list[KeywordPageMapEntry]) -> list[str]:
+        if not keyword_page_map:
+            return []
+        landing = keyword_page_map[0]
+        links = []
+        for page in keyword_page_map[1:]:
+            links.append(
+                f"{page.page_title}에서 {landing.page_title}로 핵심 CTA 링크를 연결한다."
+            )
+        if len(keyword_page_map) >= 3:
+            links.append(
+                f"{keyword_page_map[1].page_title}와 {keyword_page_map[2].page_title} 사이에 문제-해결 흐름 링크를 추가한다."
+            )
+        return links
+
+    @staticmethod
+    def _default_seo_launch_plan(keyword_page_map: list[KeywordPageMapEntry]) -> list[str]:
+        if not keyword_page_map:
+            return []
+        first = keyword_page_map[0]
+        remaining = keyword_page_map[1:]
+        plan = [
+            f"먼저 {first.page_title} 페이지를 발행하고 Search Console 색인 확인을 진행한다.",
+        ]
+        plan.extend(
+            f"다음으로 {page.page_title} 페이지를 작성해 {first.page_title}로 내부링크를 연결한다."
+            for page in remaining[:2]
+        )
+        plan.append("각 페이지에 실제 운영 예시, 체크리스트, CTA를 넣어 사람-우선 신호를 강화한다.")
+        return plan

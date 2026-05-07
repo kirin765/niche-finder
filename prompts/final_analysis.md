@@ -21,6 +21,11 @@ Rules:
 - In `online_gtm_summary`, explicitly say whether the niche looks strong enough for a landing-page traffic test with measurable CPC/click/signup conversion, or whether traffic is likely too thin.
 - Always fill `first_10_leads` with concrete online-reachable lead pools.
 - Always fill `interview_questions` with short questions that reveal frequency, loss, budget, and switching friction.
+- Always fill `keyword_page_map` with 3-5 intent-focused pages that a small SaaS site could realistically launch first.
+- Each `keyword_page_map` entry must include `primary_keyword`, `page_type`, `search_intent`, `suggested_slug`, `page_title`, and `supporting_keywords`.
+- Include at least one transactional page and at least one informational/supporting page.
+- Always fill `internal_linking_plan` with concrete internal-link relationships between landing, workflow, guide, or comparison pages.
+- Always fill `seo_launch_plan` with short execution steps for shipping the first page system, not generic SEO advice.
 - Always fill `manual_first_offer`, `price_test`, `must_have_scope`, and `must_not_build_scope` so the report can drive a landing-page and interview test.
 - Always fill `validation_plan` with short, concrete actions a solo founder can execute within 48 hours.
 - Always fill `kill_criteria` with short, falsifiable conditions for dropping or de-prioritizing the niche.
